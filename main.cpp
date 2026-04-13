@@ -22,10 +22,9 @@ using namespace std;
 每回合只有一个Bot会收到request。Bot收到的request是一个JSON对象，表示之前的出牌情况。格式如下：
 输入：
 第一个request
-
-{
-	"history": [[0, 1, 2] 上上家 , [] 上家 ],  总是两项，每一项都是数组，分别表示上上家和上家出的牌，空数组表示跳过回合或者还没轮到他。
-	"publiccard": [29, 8, 14], // 地主被公开的三张牌
+    }
+    // 当前回合的请求（可能没有 own）
+    Json::Value request = input["requests"][turnID];
 	"own": [0, 1, 2, 3, 4] // 自己最初拥有哪些牌
 }
 输出
@@ -162,7 +161,7 @@ public:
             vector<int> handPatterns = divideIntoPatterns(hand);
             vector<int> targetPatterns = divideIntoPatterns(target);
             if(isSingle(targetPatterns)) {// 单牌
-                int ismin = 17;
+                int ismin = 18;
                 for(int card : handPatterns) {
                     if(card > targetPatterns[0]) {
                         if(card < ismin) {
@@ -170,7 +169,7 @@ public:
                         }
                     }
                 }
-                if(ismin != 17) result=findCardValue(hand, ismin, 1);
+                if(ismin != 18) result=findCardValue(hand, ismin, 1);
             } else if(isPair(targetPatterns)) {// 对子  
                 int ismin = 17;
                 for(size_t i = 0; i < handPatterns.size() - 1; ++i) {
@@ -376,14 +375,13 @@ public:
     vector<int> lastMove;
     bool isleading;
 
-    // 修正构造函数：使用 Json::UInt 类型索引，避免歧义；只添加一次手牌
-    GameAI(const Json::Value& history, const Json::Value& publiccard, const Json::Value& own) 
+    // 修正构造函数：接受 `own` 为 vector<int>，避免在调用处进行重复转换
+    GameAI(const Json::Value& history, const Json::Value& publiccard, const vector<int>& own) 
     {
-        // 解析手牌
-        for (Json::UInt i = 0; i < own.size(); ++i) {
-            myhand.push_back(own[i].asInt());
-        }
+        // 解析手牌（直接使用传入的向量）
+        myhand = own;
         // 解析底牌
+        this->publiccard.clear();
         for (Json::UInt i = 0; i < publiccard.size(); ++i) {
             this->publiccard.push_back(publiccard[i].asInt());
         }
@@ -396,12 +394,18 @@ public:
         else role = 2;
 
         // 记录上家出的牌
-        if (history.size() > 1 && history[1u].isArray()) {
+        // 记录需要压的牌（上家优先，上家没出则压上上家）
+        if (history.size() > 1 && history[1u].isArray() && history[1u].size() > 0) {
+            // 上家出了牌，压上家
             for (Json::UInt i = 0; i < history[1u].size(); ++i) {
                 lastMove.push_back(history[1u][i].asInt());
             }
+        } else if (history.size() > 0 && history[0u].isArray() && history[0u].size() > 0) {
+            // 上家过牌，但上上家出了牌，压上上家
+            for (Json::UInt i = 0; i < history[0u].size(); ++i) {
+                lastMove.push_back(history[0u][i].asInt());
+            }
         }
-
         isleading = lastMove.empty();
     }
  vector<int> getLeadCards(){
@@ -594,6 +598,63 @@ public:
         }
     }
 };
+// 游戏状态结构体，用于在博弈搜索（如Minimax）中传递和记录当前游戏状态
+struct GameState {
+    // 玩家手牌
+    vector<int> myhand;
+    // 地主公开的底牌
+    vector<int> publiccard;
+    // 完整的出牌历史记录
+    Json::Value history;
+    // 当前玩家角色 (0:地主, 1:农民甲, 2:农民乙)
+    int role;
+    // 上家出的牌，用于判断跟牌的底牌
+    vector<int> lastMove;
+    // 当前是否为开局出牌方
+    bool isleading;
+    // 游戏是否结束
+    bool isGameOver;
+
+    // 构造函数，用于初始化状态
+    GameState(const Json::Value& history, const Json::Value& pubcards, const vector<int>& own) 
+        : history(history), role(0), lastMove(), isleading(true), isGameOver(false) {
+        
+        // 1. 初始化手牌和底牌 (直接使用传入的参数)
+        myhand = own;
+        for (Json::UInt i = 0; i < pubcards.size(); ++i) {
+            publiccard.push_back(pubcards[i].asInt());
+        }
+
+        // 2. 判断角色 (逻辑与GameAI保持一致)
+        bool prvePrevEmpty = (history.size() > 0 && history[0u].isArray() && history[0u].size() == 0);
+        bool prevEmpty = (history.size() > 1 && history[1u].isArray() && history[1u].size() == 0);
+        if (prvePrevEmpty && prevEmpty) role = 0;
+        else if (prvePrevEmpty && !prevEmpty) role = 1;
+        else role = 2;
+
+        // 3. 记录上家出的牌
+        if (history.size() > 1 && history[1u].isArray() && history[1u].size() > 0) {
+            for (Json::UInt i = 0; i < history[1u].size(); ++i) {
+                lastMove.push_back(history[1u][i].asInt());
+            }
+        } else if (history.size() > 0 && history[0u].isArray() && history[0u].size() > 0) {
+            for (Json::UInt i = 0; i < history[0u].size(); ++i) {
+                lastMove.push_back(history[0u][i].asInt());
+            }
+        }
+        isleading = lastMove.empty();
+    }
+    
+    // 状态复制构造函数，用于递归搜索
+    GameState(const GameState& other) : 
+        myhand(other.myhand), 
+        publiccard(other.publiccard), 
+        history(other.history), 
+        role(other.role), 
+        lastMove(other.lastMove), 
+        isleading(other.isleading),
+        isGameOver(other.isGameOver) {}
+};
 int main() {
     string line, all;
     while (getline(cin, line)) all += line;
@@ -604,17 +665,44 @@ int main() {
         return 1;
     }
     int turnID = input["responses"].size();
-    Json::Value request = input["requests"][turnID];
     
-    // 注意：只传三个参数，不再传多余的 request
-    GameAI bot(request["history"], request["publiccard"], request["own"]);
+    vector<int> currentHand;
+    Json::Value currentPublicCard;
+    
+    // 遍历所有历史回合，恢复当前手牌和底牌
+    for (int i = 0; i <= turnID; ++i) {
+        Json::Value request = input["requests"][i];
+        
+        // 如果请求中包含 own，则直接使用（一般是第一回合或某些特殊回合）
+        if (request.isMember("own") && request["own"].size() > 0) {
+            currentHand.clear();
+            for (Json::UInt j = 0; j < request["own"].size(); ++j)
+                currentHand.push_back(request["own"][j].asInt());
+            currentPublicCard = request["publiccard"];
+        }
+        
+        // 如果不是最后一回合，则根据响应（自己出的牌）更新手牌
+        if (i < turnID) {
+            Json::Value response = input["responses"][i];
+            if (response.isArray()) {
+                for (Json::UInt j = 0; j < response.size(); ++j) {
+                    int card = response[j].asInt();
+                    auto it = find(currentHand.begin(), currentHand.end(), card);
+                    if (it != currentHand.end()) currentHand.erase(it);
+                }
+            }
+        }
+    }
+     
+    
+    // 当前回合的请求（可能没有 own）
+    Json::Value request = input["requests"][turnID];
+    GameAI bot(request["history"], currentPublicCard, currentHand);
     vector<int> move = bot.decideMove();
     
     Json::Value ret;
     Json::Value output(Json::arrayValue);
-    for (int card : move) {
-        output.append(card);
-    }
+    for (int card : move) output.append(card);
     ret["response"] = output;
     ret["data"] = input["data"];
     Json::FastWriter writer;
