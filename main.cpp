@@ -174,6 +174,33 @@ class CardPatternAnalysis {
 private:
     static const  vector<int> reserve_value_table[18];
 public:
+    static const int SINGLE=0;
+    static const int PAIR=1;
+    static const int TRIPLE=2;
+    static const int THREE_WITH_ONE=3;
+    static const int THREE_WITH_TWO=4;
+    static const int TRIPLE_SEQUENCE=6;
+    static const int TRIPLE_SEQUENCE_WITH_TWO_PAIRS=5;
+    static const int STRAIGHT=8;
+    static const int PAIR_SEQUENCE=7;
+    static const int BOMB=9;
+    static const int ROCKET=10;
+     static int getCardType(const vector<int>& cards) {
+        vector<int> patterns = divideIntoPatterns(cards);
+        if (isRocket(patterns)) return 10; // 火箭
+        if (isBomb(patterns)) return 9; // 炸弹
+        if (isStraight(patterns)) return 8; // 顺子
+        if (isPairSequence(patterns)) return 7; // 连对
+        if (isTripleSequence(patterns)) return 6; // 飞机
+        if (isTripleSequenceWithTwoPairs(patterns)) return 5; // 飞机带两对
+        if (isThreeWithTwo(patterns)) return 4; // 三带二
+        if (isThreeWithOne(patterns)) return 3; // 三带一
+        if (isTriple(patterns)) return 2; // 三张牌
+        if (isPair(patterns)) return 1; // 对子
+        if (isSingle(patterns)) return 0; // 单牌
+        return -1; // 非法牌型
+    }
+
     static const vector<int> findCardValue(const vector<int>& handcards,int value,int count) {
         vector<int> result;
         const vector<int>& candidates = reserve_value_table[value];
@@ -228,13 +255,11 @@ public:
     static bool isThreeWithTwo(const vector<int>& cards) {
         if (cards.size() != 5) return false;
         for (size_t i = 0; i < cards.size(); ++i) {
-            vector<int> temp(cards);
-            temp.erase(temp.begin() + i); // 去掉第i张牌
-            if (isTriple(temp)) { // 如果剩下的三张牌是三条
-                // 检查剩下的两张牌是否是对子
-                for (size_t j = 0; j < temp.size() - 1; ++j) {
-                    if (temp[j] == temp[j + 1]) return true; // 如果是对子，则满足三带二
-                }
+            int count1 = count(cards.begin(), cards.end(), cards[i]);
+            if(count1 == 3) {
+                vector<int> temp(cards);
+                temp.erase(remove(temp.begin(), temp.end(), cards[i]), temp.end()); // 去掉所有与cards[i]相同的牌
+                if (isPair(temp)) return true; // 如果剩下的两张牌是对子，则满足三带二
             }
         }
         return false;
@@ -267,19 +292,60 @@ public:
         }
         return true;
     }
+    //飞机带两对
     static bool isTripleSequenceWithTwoPairs(const vector<int>& cards) {
-        if (cards.size() != 8) return false;
-        // 提取三条部分
-        vector<int> triplePart = {cards[0], cards[3], cards[6]};
-        if (!isTripleSequence(triplePart)) return false;
-        // 提取剩余的两张牌
-        vector<int> remaining;
-        for (size_t i = 0; i < cards.size(); ++i) {
-            if (i != 0 && i != 3 && i != 6) remaining.push_back(cards[i]);
-        }
-        // 检查剩余的两张牌是否是对子
-        return remaining.size() == 2 && remaining[0] == remaining[1];
+            if (cards.size() < 10 || cards.size() % 5 != 0) return false;
+            int k = cards.size() / 5;
+            vector<int> cnt(18, 0);
+            for (int v : cards) cnt[v]++;
+            // 收集可作为三条的点数（3..14）
+            vector<int> tripleVals;
+            for (int v = 3; v <= 14; ++v) if (cnt[v] >= 3) tripleVals.push_back(v);
+            if (tripleVals.size() < k) return false;
+            // 在 tripleVals 中找连续长为 k 的段
+            for (size_t i = 0; i + k <= tripleVals.size(); ++i) {
+                bool okSeq = true;
+                for (int j = 1; j < k; ++j) if (tripleVals[i + j] != tripleVals[i] + j) { okSeq = false; break; }
+                if (!okSeq) continue;
+                // 检查剩余是否恰好为 k 个不同的对子
+                vector<int> tmp = cnt;
+                for (int j = 0; j < k; ++j) tmp[tripleVals[i + j]] -= 3;
+                int pairCount = 0; bool valid = true;
+                for (int v = 3; v <= 17; ++v) {
+                    if (tmp[v] == 0) continue;
+                    if (tmp[v] == 2) pairCount++;
+                    else { valid = false; break; } // 出现单张或三张残留则不行
+                }
+                if (valid && pairCount == k) return true;
+            }
+            return false;
     }
+        
+        // 飞机带单牌（通用 k>=2 的飞机带单判定），参数为点数数组
+    static bool isTripleSequenceWithTwoSingles(const vector<int>& cards) {
+           if (cards.size() < 8 || cards.size() % 4 != 0) return false;
+            int k = cards.size() / 4;
+            vector<int> cnt(18, 0);
+            for (int v : cards) cnt[v]++;
+            vector<int> tripleVals;
+            for (int v = 3; v <= 14; ++v) if (cnt[v] >= 3) tripleVals.push_back(v);
+            if ((int)tripleVals.size() < k) return false;
+            for (size_t i = 0; i + k <= tripleVals.size(); ++i) {
+                bool okSeq = true;
+                for (int j = 1; j < k; ++j) if (tripleVals[i + j] != tripleVals[i] + j) { okSeq = false; break; }
+                if (!okSeq) continue;
+                vector<int> tmp = cnt;
+                for (int j = 0; j < k; ++j) tmp[tripleVals[i + j]] -= 3;
+                int singleCount = 0; bool valid = true;
+                for (int v = 3; v <= 17; ++v) {
+                    if (tmp[v] == 0) continue;
+                    if (tmp[v] == 1) singleCount++;
+                    else { valid = false; break; } // 出现对子或更高残留则不行
+                }
+                if (valid && singleCount == k) return true;
+            }
+            return false;
+        }
     //炸弹和王炸
     static bool isBomb(const vector<int>& cards) {
         return cards.size() == 4 && cards[0] == cards[1] && cards[1] == cards[2] && cards[2] == cards[3];
@@ -481,37 +547,38 @@ public:
                     vector<int> res = findCardValue(hand, targetValues);
                     if (!res.empty()) result = res;
                 }
-            }else if(targetPatterns.size()==8&&isTripleSequence({targetPatterns[0],targetPatterns[1],targetPatterns[2], targetPatterns[3],targetPatterns[4],targetPatterns[5], targetPatterns[6]})) {
-                // 飞机带两对
-                int length = targetPatterns.size();
-                int ismin = 17;
-                for(size_t i = 0; i <= handPatterns.size() - length + 1; ++i) {
-                    vector<int> candidate(handPatterns.begin() + i, handPatterns.begin() + i + length);
-                    if(isTripleSequence({candidate[0], candidate[3], candidate[6]}) && candidate[0] > targetPatterns[0]) {
-                        if(candidate[0] < ismin) {
-                            ismin = candidate[0];
-                        }
+            }else if(isTripleSequenceWithTwoPairs(targetPatterns)) {
+                int length = (int)targetPatterns.size();
+                if (length % 5 != 0) return {};
+                int k = length / 5; // 飞机组数
+                vector<int> cnt(18,0);
+                for (int v : handPatterns) cnt[v]++;
+                vector<int> triples;
+                for (int v = 3; v <= 14; ++v) if (cnt[v] >= 3) triples.push_back(v);
+                if ((int)triples.size() < k) return {};
+                int bestStart = 100;
+                vector<int> bestRes;
+                for (size_t idx = 0; idx + k <= triples.size(); ++idx) {
+                    bool ok = true;
+                    for (int j = 1; j < k; ++j) if (triples[idx + j] != triples[idx] + j) { ok = false; break; }
+                    if (!ok) continue;
+                    if (triples[idx] <= targetPatterns[0]) continue; // 必须更大
+                    auto tmp = cnt;
+                    for (int j = 0; j < k; ++j) tmp[triples[idx + j]] -= 3;
+                    vector<int> pairVals;
+                    bool valid = true;
+                    for (int v = 3; v <= 17; ++v) {
+                        if (tmp[v] == 2) pairVals.push_back(v);
+                        else if (tmp[v] != 0) { valid = false; break; }
                     }
-                }
-                if(ismin != 17) {
+                    if (!valid || (int)pairVals.size() != k) continue;
                     vector<int> targetValues;
-                    for (int j = 0; j < 2; ++j) {
-                        for (int k = 0; k < 3; ++k) {
-                            targetValues.push_back(ismin + j);
-                        }
-                    }
-                    int pairCount = 0;
-                    for(size_t i = 0; i < handPatterns.size() - 1; ++i) {
-                        if(handPatterns[i] == handPatterns[i + 1] && handPatterns[i] != ismin && handPatterns[i] != ismin + 1) {
-                            targetValues.push_back(handPatterns[i]);
-                            targetValues.push_back(handPatterns[i]);
-                            pairCount++;
-                            if(pairCount == 2) break;
-                        }
-                    }
-                    vector<int> res = findCardValue(hand, targetValues);
-                    if (!res.empty()) result = res;
+                    for (int j = 0; j < k; ++j) for (int t = 0; t < 3; ++t) targetValues.push_back(triples[idx + j]);
+                    for (int pv : pairVals) { targetValues.push_back(pv); targetValues.push_back(pv); }
+                    auto res = findCardValue(hand, targetValues);
+                    if (!res.empty() && triples[idx] < bestStart) { bestStart = triples[idx]; bestRes = res; }
                 }
+                if (!bestRes.empty()) result = bestRes;
 
 
             } else if(isBomb(targetPatterns)) {// 炸弹
@@ -530,22 +597,7 @@ public:
             
         return result.empty() ? vector<int>() : result;
     }
-    static int getCardType(const vector<int>& cards) {
-        vector<int> patterns = divideIntoPatterns(cards);
-        if (isRocket(patterns)) return 10; // 火箭
-        if (isBomb(patterns)) return 9; // 炸弹
-        if (isStraight(patterns)) return 8; // 顺子
-        if (isPairSequence(patterns)) return 7; // 连对
-        if (isTripleSequence(patterns)) return 6; // 飞机
-        if (isTripleSequenceWithTwoPairs(patterns)) return 5; // 飞机带两对
-        if (isThreeWithTwo(patterns)) return 4; // 三带二
-        if (isThreeWithOne(patterns)) return 3; // 三带一
-        if (isTriple(patterns)) return 2; // 三张牌
-        if (isPair(patterns)) return 1; // 对子
-        if (isSingle(patterns)) return 0; // 单牌
-        return -1; // 非法牌型
-    }
-
+    
 };
 const vector<int> CardPatternAnalysis::reserve_value_table[18] = {
     {},//0
@@ -909,11 +961,10 @@ class GameState {
     // 游戏是否结束
     bool isGameOver;
     int winner; // 0:地主胜, 1:农民甲胜, 2:农民乙胜
-
     // 构造函数，用于初始化状态
     GameState(const vector<int> hands_[3],const vector<int>& publiccards_,const vector<vector<int>>& history_,int landlord_role_,int my_role_)
         : history(history_),publiccard(publiccards_),currentPlayer(landlord_role_),myRole(my_role_),landlordRole(landlord_role_),
-        isGameOver(false), winner(-1) {//需要优化初始化函数，暂且搁置
+        isGameOver(false), winner(-1), currentPassCount(0), lastActionPlayer(-1) {//需要优化初始化函数，暂且搁置
         
         // 1. 初始化手牌和底牌 (直接使用传入的参数)
         for (int i = 0; i < 3; ++i) {
@@ -960,7 +1011,7 @@ class GameState {
             newState.currentPlayer=(newState.currentPlayer+1)%3;
             if(newState.myhand[newState.lastActionPlayer].empty()) {
                 newState.isGameOver=true;
-                newState.winner=(newState.lastActionPlayer==newState.landlordRole) ? 0 : 1;
+                newState.winner=newState.lastActionPlayer;
             }
         }
         return newState;
@@ -980,20 +1031,33 @@ class GameState {
         else return !history.empty() && lastActionPlayer == currentPlayer;
     }
     // 生成当前手牌的所有单张
-        vector<vector<int>> generateSingles(const vector<int>& hand) {
+        vector<vector<int>> generateSingles(const vector<int>& hand,int type=0,vector<int> targetPatterns={}) {
             vector<vector<int>> result;
             vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
+            if(type==0){
             for (int v : vals) {
                 auto cards = CardPatternAnalysis::findCardValue(hand, v, 1);
                 if (!cards.empty()) result.push_back(cards);
             }
-            return result;
+            } else if(type==1){
+                // 根据 targetPatterns 生成所有大于上家的单牌（用于跟牌）
+                for (int v : vals) {
+                    if (v > targetPatterns[0]) {
+                        auto cards = CardPatternAnalysis::findCardValue(hand, v, 1);
+                        if (!cards.empty()) result.push_back(cards);
+                    }
+                }
+                
+            }
+        return result;
         }
 
         // 生成所有对子
-        vector<vector<int>> generatePairs(const vector<int>& hand) {
+        vector<vector<int>> generatePairs(const vector<int>& hand,int type=0,vector<int> targetPatterns={}) {
+            if(hand.size() < 2) return {};
             vector<vector<int>> result;
             vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
+            if(type==0){
             for (size_t i = 0; i + 1 < vals.size(); ++i) {
                 if (vals[i] == vals[i+1]) {
                     auto cards = CardPatternAnalysis::findCardValue(hand, vals[i], 2);
@@ -1001,13 +1065,25 @@ class GameState {
                     i++; // 跳过下一个
                 }
             }
+            }else if(type==1){
+                // 根据 targetPatterns 生成所有大于上家的对子（用于跟牌）
+                for (size_t i = 0; i + 1 < vals.size(); ++i) {
+                    if (vals[i] == vals[i+1] && vals[i] > targetPatterns[0]) {
+                        auto cards = CardPatternAnalysis::findCardValue(hand, vals[i], 2);
+                        if (!cards.empty()) result.push_back(cards);
+                        i++; // 跳过下一个
+                    }
+                }
+            }
             return result;
         }
 
         // 生成所有三张
-        vector<vector<int>> generateTriples(const vector<int>& hand) {
+        vector<vector<int>> generateTriples(const vector<int>& hand,int type=0,vector<int> targetPatterns={}) {
+            if(hand.size() < 3) return {};
             vector<vector<int>> result;
             vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
+            if(type==0){
             for (size_t i = 0; i + 2 < vals.size(); ++i) {
                 if (vals[i] == vals[i+2]) {
                     auto cards = CardPatternAnalysis::findCardValue(hand, vals[i], 3);
@@ -1015,13 +1091,49 @@ class GameState {
                     i += 2;
                 }
             }
+            }else if(type==1){
+                // 根据 targetPatterns 生成所有大于上家的三张（用于跟牌）
+                for (size_t i = 0; i + 2 < vals.size(); ++i) {
+                    if (vals[i] == vals[i+2] && vals[i] > targetPatterns[0]) {
+                        auto cards = CardPatternAnalysis::findCardValue(hand, vals[i], 3);
+                        if (!cards.empty()) result.push_back(cards);
+                        i += 2;
+                    }
+                }
+            }
             return result;
         }
 
         // 生成所有炸弹
-        vector<vector<int>> generateBombs(const vector<int>& hand) {
+        vector<vector<int>> generateBombs(const vector<int>& hand,int type=0,vector<int> targetPatterns={}) {
+            if(hand.size() < 4) return {};
             vector<vector<int>> result;
-            vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
+             vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
+            if(type==0){
+            for (size_t i = 0; i + 3 < vals.size(); ++i) {
+                if (vals[i] == vals[i+3]) {
+                    auto cards = CardPatternAnalysis::findCardValue(hand, vals[i], 4);
+                    if (!cards.empty()) result.push_back(cards);
+                    i += 3;
+                }
+            }
+            }else if(type==1){
+                // 根据 targetPatterns 生成所有大于上家的炸弹（用于跟牌）
+                for (size_t i = 0; i + 3 < vals.size(); ++i) {
+                    if (vals[i] == vals[i+3] && vals[i] > targetPatterns[0]) {
+                        auto cards = CardPatternAnalysis::findCardValue(hand, vals[i], 4);
+                        if (!cards.empty()) result.push_back(cards);
+                        i += 3;
+                    }
+                }
+            }
+            return result;
+        }
+        //
+        static vector<vector<int>> SgenerateBombs(const vector<int>& hand) {
+            if(hand.size() < 4) return {};
+            vector<vector<int>> result;
+             vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
             for (size_t i = 0; i + 3 < vals.size(); ++i) {
                 if (vals[i] == vals[i+3]) {
                     auto cards = CardPatternAnalysis::findCardValue(hand, vals[i], 4);
@@ -1031,11 +1143,12 @@ class GameState {
             }
             return result;
         }
-
         // 生成所有顺子（长度5~12）
-        vector<vector<int>> generateStraights(const vector<int>& hand) {
+        vector<vector<int>> generateStraights(const vector<int>& hand,int type=0,vector<int> targetPatterns={}) {
+            if(hand.size() < 5) return {};
             vector<vector<int>> result;
             vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
+            if(type==0){
             // 去除重复点数
             vector<int> uniqueVals;
             for (size_t i = 0; i < vals.size(); ++i) {
@@ -1058,13 +1171,41 @@ class GameState {
                     }
                 }
             }
-            return result;
-        }
+        }else if(type==1){
+            // 根据 targetPatterns 生成所有大于上家的顺子（用于跟牌）
+            vector<int> uniqueVals;
+            for (size_t i = 0; i < vals.size(); ++i) {
+                if (i == 0 || vals[i] != vals[i-1]) uniqueVals.push_back(vals[i]);
+            }
+            for (int len = 12; len >= 5; --len) {
+                for (size_t i = 0; i + len <= uniqueVals.size(); ++i) {
+                    bool isStraight = true;
+                    for (int j = 0; j < len; ++j) {
+                        if (uniqueVals[i+j] != uniqueVals[i] + j) {
+                            isStraight = false;
+                            break;
+                        }
+                    }
+                    if (isStraight && uniqueVals[i] > targetPatterns[0]) {
+                        vector<int> targetVals;
+                        for (int j = 0; j < len; ++j) targetVals.push_back(uniqueVals[i] + j);
+                        auto cards = CardPatternAnalysis::findCardValue(hand, targetVals);
+                        if (cards.size() == targetVals.size()) result.push_back(cards);
+                    }
+                }
 
+            }
+            
+        }
+         return result;
+        }
+    
         // 生成所有连对（至少3对）
-        vector<vector<int>> generatePairSequences(const vector<int>& hand) {
+        vector<vector<int>> generatePairSequences(const vector<int>& hand,int type=0,vector<int> targetPatterns={}) {
+            if(hand.size() < 6) return {};
             vector<vector<int>> result;
-            vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
+            vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand); 
+            if(type==0){
             // 统计每种点数的个数
             int cnt[18] = {0};
             for (int v : vals) cnt[v]++;
@@ -1085,13 +1226,41 @@ class GameState {
                     }
                 }
             }
+            }else if(type==1){
+                // 根据 targetPatterns 生成所有大于上家的连对（用于跟牌）
+                int cnt[18] = {0};
+                for (int v : vals) cnt[v]++;
+                for (int len = 6; len <= 12; len += 2) { // 长度6,8,10,12 对应3,4,5,6对
+                    for (int start = 3; start + len/2 - 1 <= 14; ++start) {
+                        bool ok = true;
+                        for (int j = 0; j < len/2; ++j) {
+                            if (cnt[start + j] < 2) { ok = false; break; }
+                        }
+                        if (ok && start > targetPatterns[0]) {
+                            vector<int> targetVals;
+                            for (int j = 0; j < len/2; ++j) {
+                                targetVals.push_back(start + j);
+                                targetVals.push_back(start + j);
+                            }
+                            auto cards = CardPatternAnalysis::findCardValue(hand, targetVals);
+                            if (cards.size() == targetVals.size()) result.push_back(cards);
+                        }
+                    }
+                }
+
+
+                
+            }
             return result;
         }
 
         // 生成所有飞机（至少2个连续三张）
-        vector<vector<int>> generatePlanes(const vector<int>& hand) {
+        vector<vector<int>> generatePlanes(const vector<int>& hand,int type=0,vector<int> targetPatterns={}) {
+            if(hand.size() < 6) return {};
             vector<vector<int>> result;
             vector<int> vals = CardPatternAnalysis::divideIntoPatterns(hand);
+            if(type==0){
+            // 统计每种点数的个数
             int cnt[18] = {0};
             for (int v : vals) cnt[v]++;
             for (int len = 6; len <= 12; len += 3) { // 长度6,9,12 对应2,3,4组
@@ -1110,9 +1279,31 @@ class GameState {
                     }
                 }
             }
+        }else if(type==1){
+                // 根据 targetPatterns 生成所有大于上家的飞机（用于跟牌）
+                int cnt[18] = {0};
+                for (int v : vals) cnt[v]++;
+                for (int len = 6; len <= 12; len += 3) { // 长度6,9,12 对应2,3,4组
+                    for (int start = 3; start + len/3 - 1 <= 14; ++start) {
+                        bool ok = true;
+                        for (int j = 0; j < len/3; ++j) {
+                            if (cnt[start + j] < 3) { ok = false; break; }
+                        }
+                        if (ok && start > targetPatterns[0]) {
+                            vector<int> targetVals;
+                            for (int j = 0; j < len/3; ++j) {
+                                for (int k = 0; k < 3; ++k) targetVals.push_back(start + j);
+                            }
+                            auto cards = CardPatternAnalysis::findCardValue(hand, targetVals);
+                            if (cards.size() == targetVals.size()) result.push_back(cards);
+                        }
+                    }
+
+            }
+            }
             return result;
         }
-
+    
         // 生成火箭
         vector<vector<int>> generateRocket(const vector<int>& hand) {
             auto small = CardPatternAnalysis::findCardValue(hand, 16, 1);
@@ -1122,49 +1313,118 @@ class GameState {
             }
             return {};
         }
-    vector<vector<vector<int>>> getAllActions(){
-        vector<vector<vector<int>>> allActions;
+        static vector<int> SgenerateRocket(const vector<int>& hand) {
+            auto small = CardPatternAnalysis::findCardValue(hand, 16, 1);
+            if (!small.empty()) {
+                auto big = CardPatternAnalysis::findCardValue(hand, 17, 1);
+                if (!big.empty()) return {small[0], big[0]};
+            }
+            return {};
+        }
+        vector<vector<int>> getAllActions(){
+        vector<vector<int>> allActions;
         if(isLeading()){
-            allActions.push_back(generateRocket(getCurrentPlayerHand()));
-            allActions.push_back(generateBombs(getCurrentPlayerHand()));
-            allActions.push_back(generatePlanes(getCurrentPlayerHand()));
-            allActions.push_back(generatePairSequences(getCurrentPlayerHand()));
-            allActions.push_back(generateStraights(getCurrentPlayerHand()));
-            allActions.push_back(generateTriples(getCurrentPlayerHand()));
-            allActions.push_back(generatePairs(getCurrentPlayerHand()));
-            allActions.push_back(generateSingles(getCurrentPlayerHand()));
-            if(getCurrentPlayerHand().empty()) allActions.push_back({}); // 过牌也是合法动作
+            // 领先时生成所有合法的出牌动作
+            vector<int> hand = getCurrentPlayerHand();
+            vector<vector<int>> singles = generateSingles(hand);
+            vector<vector<int>> pairs = generatePairs(hand);
+            vector<vector<int>> triples = generateTriples(hand);
+            vector<vector<int>> bombs = generateBombs(hand,0);
+            vector<vector<int>> straights = generateStraights(hand);
+            vector<vector<int>> pairSeqs = generatePairSequences(hand);
+            vector<vector<int>> planes = generatePlanes(hand);
+            vector<vector<int>> rockets = generateRocket(hand);
+            allActions.insert(allActions.end(), singles.begin(), singles.end());
+            allActions.insert(allActions.end(), pairs.begin(), pairs.end());
+            allActions.insert(allActions.end(), triples.begin(), triples.end());
+            allActions.insert(allActions.end(), bombs.begin(), bombs.end());
+            allActions.insert(allActions.end(), straights.begin(), straights.end());
+            allActions.insert(allActions.end(), pairSeqs.begin(), pairSeqs.end());
+            allActions.insert(allActions.end(), planes.begin(), planes.end());
+            allActions.insert(allActions.end(), rockets.begin(), rockets.end());
         }else{
             // 跟牌时只考虑能压过上家的牌型
             vector<int> lastMove = getLastMove();
             int lastType = CardPatternAnalysis::getCardType(lastMove);
+            if (lastType == CardPatternAnalysis::ROCKET) {
+                    allActions.push_back({});
+                    return allActions;
+                }
             // 根据lastType调用相应的生成函数，并过滤出能压过lastMove的动作
              // 这里需要实现一个过滤函数，判断生成的动作是否能压过lastMove
+                vector<vector<int>> candidates;
+                switch (lastType) {
+                    case CardPatternAnalysis::SINGLE:
+                        candidates = generateSingles(getCurrentPlayerHand(), 1, lastMove);
+                        break;
+                    case CardPatternAnalysis::PAIR:
+                        candidates = generatePairs(getCurrentPlayerHand(), 1, lastMove);
+                        break;
+                    case CardPatternAnalysis::TRIPLE:
+                        candidates = generateTriples(getCurrentPlayerHand(), 1, lastMove);
+                        break;
+                    case CardPatternAnalysis::BOMB:
+                        candidates = generateBombs(getCurrentPlayerHand(), 1, lastMove);
+                        break;
+                    case CardPatternAnalysis::STRAIGHT:
+                        candidates = generateStraights(getCurrentPlayerHand(), 1, lastMove);
+                        break;
+                    case CardPatternAnalysis::PAIR_SEQUENCE:
+                        candidates = generatePairSequences(getCurrentPlayerHand(), 1, lastMove);
+                        break;
+                    case CardPatternAnalysis::TRIPLE_SEQUENCE:
+                        candidates = generatePlanes(getCurrentPlayerHand(), 1, lastMove);
+                        break;
+                    default:
+                        break;
+                }
+                if (lastType != CardPatternAnalysis::BOMB) {
+                    vector<vector<int>> bombs = generateBombs(getCurrentPlayerHand(), 0);
+                    allActions.insert(allActions.end(), bombs.begin(), bombs.end());
+                } // 所有炸弹
+                vector<vector<int>> rockets = generateRocket(getCurrentPlayerHand());
+                allActions.insert(allActions.end(), rockets.begin(), rockets.end());
+                 allActions.insert(allActions.end(), candidates.begin(), candidates.end());
+                // 加上过牌
+                allActions.push_back({});
         }
-         return allActions;
-    }
-    static vector<vector<int>> getLegalActions(const GameState& state) {
-        // 根据当前状态，生成所有合法的出牌动作
-        if(state.isleading){}
-        vector<vector<int>> legalActions;
-         
-        return legalActions;
+        //去重
+        sort(allActions.begin(), allActions.end());
+        allActions.erase(unique(allActions.begin(), allActions.end()), allActions.end());
+        return allActions;
     }
     static vector<vector<int>> greedyPolicy(const GameState& state) {
         // 生成基于启发式评估的贪心合法动作列表，优先考虑评估分数较高的动作
-        GameAI tempAI(state.history, state.publiccard, state.myhand);
-        vector<int> leadCards = tempAI.getLeadCards();
-        vector<int> followCards = tempAI.getFollowCards();
+        GameAI tempAI(state.history, state.publiccard, state.getCurrentPlayerHand());
         vector<vector<int>> legalActions;
-        if (state.isleading) {
-            if (!leadCards.empty()) legalActions.push_back(leadCards);
+        if(state.isLeading()) {
+            vector<int> minbest = tempAI.getLeadCards();
+            if(!minbest.empty())legalActions.push_back(minbest);
+            vector<int> hand = state.getCurrentPlayerHand();
+            if(!hand.empty()){
+                int valmin=CardPatternAnalysis::getCardValue(hand[0]);
+                for(int card : hand)
+                    valmin=min(valmin, CardPatternAnalysis::getCardValue(card));
+                vector<int> single = CardPatternAnalysis::findCardValue(hand, valmin, 1);
+                if(!single.empty()) legalActions.push_back(single);
+            
         } else {
-            if (!followCards.empty()) legalActions.push_back(followCards);
-            legalActions.push_back({}); // 过牌也是合法动作
+            vector<int> bestmin = tempAI.getFollowCards();
+            if(!bestmin.empty())legalActions.push_back(bestmin);
+             vector<int> hand = state.getCurrentPlayerHand();
+             vector<vector<int>> bombs=SgenerateBombs(hand);
+             for(const auto& bomb : bombs){
+                if(bomb!=bestmin)
+                legalActions.push_back(bomb);
+             }
+             vector<int> rocket = SgenerateRocket(hand);
+             if(!rocket.empty() && rocket != bestmin) legalActions.push_back(rocket);
+             legalActions.push_back({}); // 加上过牌
         }
-        return legalActions;
+         
+        }
+        return legalActions; 
     }
-
 };
 //蒙特卡洛的实现
 //1.选择基于3个标准牌的好坏程度，历史次数最多，胜负次数，公式：score = wins/visits + C*sqrt(ln(parent_visits)/visits)+a*prior，C为调节探索程度的常数，通常取1.4
@@ -1174,40 +1434,36 @@ class GameState {
 //5.重复以上步骤，直到达到预设的迭代次数或时间限制，最终选择访问次数最多的子节点作为决策结果(最多1000次迭代)
 class MCTSNode {
 public:
-    GameState state;
+    GameState *state;
     GameAI* ai; // 每个节点维护一个GameAI实例，用于评估当前状态和生成子状态
     MCTSNode* parent;
     vector<MCTSNode*> children;
+    vector<int> action; // 从父节点到当前节点的动作
     int visits;
     int wins;
     int prior; 
     int max_score; // 用于归一化先验概率的动态常数
     // 先验概率，可以根据启发式评估函数计算得到,evaluateHand函数可以用来评估当前手牌的好坏程度，作为先验概率的一部分
     //先验概率的归一化可以通过将评估分数除以一个动态常数即每个子动作的评估分数中最大的来实现，使得先验概率在0到1之间。
-    MCTSNode(const GameState& state, MCTSNode* parent = nullptr) 
-        : state(state), parent(parent), visits(0), wins(0), max_score(0) {
-        // 计算先验概率
-        if(parent) {
-            prior = GameAI::evaluateHand(state.myhand);
-            max_score = max(parent->max_score,max_score, prior);
-            if (max_score > 0) {
-                prior = (prior * 100) / max_score; // 归一化到0-100
-            } else {
-                prior = 0;
-            }
+    MCTSNode( GameState& otherstate, MCTSNode* parent = nullptr,const vector<int>& action={}) 
+        : parent(parent), visits(0), wins(0.0), max_score(0) {
+            this->state = new GameState(otherstate);
+            this->action = action;
+            ai = new GameAI(state->history, state->publiccard, state->myhand[state->myRole]);
+        // 计算先验分数（未归一化）
+        int raw_prior = GameAI::evaluateHand(state->myhand[state->myRole]);
+        if (parent) {
+            max_score = max(parent->max_score, raw_prior);
+            prior = (max_score > 0) ? (raw_prior * 100) / max_score : 0;
         } else {
-            prior = GameAI::evaluateHand(state.myhand);
-            max_score = prior;
-             if (max_score > 0) {
-                prior = (prior * 100) / max_score; // 归一化到0-100
-            } else {
-                prior = 0;
+            max_score = raw_prior;
+            prior = (max_score > 0) ? (raw_prior * 100) / max_score : 0;
         }
-        }
-        ai = new GameAI(state.history, state.publiccard, state.myhand);
     }
     
     ~MCTSNode() {
+        delete state;
+        delete ai;
         for (MCTSNode* child : children) {
             delete child;
         }
@@ -1216,11 +1472,13 @@ public:
     // 选择子节点，基于UCB1公式
     MCTSNode* selectChild(double C = 1.4) {
         MCTSNode* bestChild = nullptr;
-        double bestScore = -1.0;
+        double bestScore = -1e9;
         for (MCTSNode* child : children) {
-            double score = (child->wins / (child->visits + 1e-6)) + C * sqrt(log(visits + 1) / (child->visits + 1e-6))+ 0.1 * child->prior; // 加入先验概率
-            if (score > bestScore) {
-                bestScore = score;
+           double exploit = (child->visits > 0) ? (double)child->wins / child->visits : 0.0;
+            double explore = C * sqrt(log(visits + 1) / (child->visits + 1e-6));
+            double UCB = exploit + explore + 0.1 * child->prior; // 加入先验概率的影响
+            if (UCB > bestScore) {
+                bestScore = UCB;
                 bestChild = child;
             }
         }
@@ -1230,20 +1488,72 @@ public:
     // 扩展子节点
     //贪心策略和随机策略结合，优先扩展评估分数较高的动作，但也保留一定的随机性以增加探索
     void expand() {
-         vector<int> moves = ai->decideMove(); // 生成当前状态的合法动作
-        // 对每个合法动作，生成一个新的GameState并创建一个新的MCTS
+          vector<vector<int>> legalActions = state->getAllActions();
+          //剔除已经扩展过的动作
+        vector<vector<int>> untried;
+        for(const auto& action : legalActions) {
+            bool tried = false;
+            for(MCTSNode* child : children) {
+                if(child->action == action) {
+                    tried = true;
+                    break;
+                }
+            }
+            if(!tried) untried.push_back(action);
+        }
+        if(untried.empty()) return; // 没有未尝试的动作了
+        //随机选择一个未尝试的动作进行扩展
+        int idx = rand() % untried.size();
+        vector<int> action = untried[idx];
+        GameState newState = state->applyAction(action);
+        MCTSNode* child = new MCTSNode(newState, this, action);
+        children.push_back(child);
+
     }
     
     // 模拟游戏直到结束，返回结果（胜利或失败）
     bool simulate() {
-            
+            GameState simState = *state;
+            GameAI simAI(simState.history, simState.publiccard, simState.getCurrentPlayerHand());
+            const double EPSILON =0.1; // 10%的概率选择随机动作
+            static mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
+            uniform_real_distribution<double> dist(0,99);
+            while (!simState.isGameOver) {
+                vector<vector<int>> legalActions= simState.getAllActions();
+                if(legalActions.empty()){
+                    simState.applyAction({}); // 过牌
+                    continue;
+                }
+                vector<int>action;
+                if(dist(rng)<EPSILON*100) {
+                    // 随机选择一个合法动作
+                    int idx = rand() % legalActions.size();
+                    action = legalActions[idx];
+                } else {
+                    // 使用贪心策略选择一个评估分数最高的动作
+                    double bestScore = -1e9;
+                    for (const auto& a : legalActions) {
+                        GameState tempState = simState.applyAction(a);
+                        GameAI tempAI(tempState.history, tempState.publiccard, tempState.getCurrentPlayerHand());
+                        double score = GameAI::evaluateHand(tempState.getCurrentPlayerHand());
+                        if (score > bestScore) {
+                            bestScore = score;
+                            action = a;
+                        }
+                    }
+                }
+                 simState = simState.applyAction(action);
+            }
+            int curPlayer = state->currentPlayer;
+            if(simState.winner == curPlayer) return 1.0;
+            else return 0.0;
     }
     
     // 反向传播结果
-    void backpropagate(bool win) {
+    void backpropagate(double result) {
         visits++;
-        if (win) wins++;
-        if (parent) parent->backpropagate(win);
+        wins += result;
+        if (parent) parent->backpropagate(result);
     }
 };
 int main() {
