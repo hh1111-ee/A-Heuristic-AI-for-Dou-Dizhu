@@ -11,6 +11,7 @@
 #include<array>
 #include<functional>
 #include<cstring>
+#include<map>
 #include"jsoncpp/json.h"
 using namespace std;
 /*斗地主bot --botzone作业
@@ -226,6 +227,7 @@ namespace PatternCheck{
     }
     bool check(const int cnt[18],const vector<int>& lastMovePatterns,Pair& pair){
         for(int v=3;v<=17;v++){
+            
             if(cnt[v]>=2){
                 if(!lastMovePatterns.empty()&&lastMovePatterns[0]>=v)
                     continue;
@@ -1110,32 +1112,36 @@ class GameState {
             // 定义枚举函数指针数组（顺序可任意，但建议火箭炸弹优先，不过主动出牌时全部生成即可）
             using EnumFunc = function<vector<vector<int>>(const int[18], const vector<int>&)>;
             vector<EnumFunc> funcs = {
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateBombs(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateSingles(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumeratePairs(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateTriples(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateStraights(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumeratePairSequences(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateTripleSequence(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateTriplesWithOne(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateTriplesWithTwo(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumeratePlanesWithSingles(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumeratePlanesWithPairs(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateQuadWithSingles(cnt, last); },
-                [&](const int cnt[18], const vector<int>& last) { return PatternCheck::enumerateQuadWithPairs(cnt, last); }
+                PatternCheck::enumerateBombs,
+                PatternCheck::enumerateSingles,
+                PatternCheck::enumeratePairs,
+                PatternCheck::enumerateTriples,
+                PatternCheck::enumerateStraights,
+                PatternCheck::enumeratePairSequences,
+                PatternCheck::enumerateTripleSequence,
+                PatternCheck::enumerateTriplesWithOne,
+                PatternCheck::enumerateTriplesWithTwo,
+                PatternCheck::enumeratePlanesWithSingles,
+                PatternCheck::enumeratePlanesWithPairs,
+                PatternCheck::enumerateQuadWithSingles,
+                PatternCheck::enumerateQuadWithPairs
             };
             // 火箭单独处理（因为不需要 lastMovePatterns）
             auto rocketCombos = PatternCheck::enumerateRocket(cnt);
             for (auto& combo : rocketCombos) {
                 auto cards = idx.takeCardsByValues(combo);
-                if (!cards.empty()) allActions.push_back(cards);
+                if (!cards.empty()) {allActions.push_back(cards);
+                idx.putCards(cards); // 取牌后立即放回，保持索引状态不变
+                }
             }
             for (auto& func : funcs) {
                 if (func == nullptr) continue;
                 auto combos = func(cnt, lastMovePatterns);
                 for (auto& combo : combos) {
                     auto cards = idx.takeCardsByValues(combo);
-                    if (!cards.empty()) allActions.push_back(cards);
+                    if (!cards.empty()) {allActions.push_back(cards);
+                    idx.putCards(cards); // 取牌后立即放回，保持索引状态不变
+                    }
                 }
             }
             if (!isLeading()) {
@@ -1375,107 +1381,257 @@ public:
         if (parent) parent->backpropagate(result);
     }
 };
+#include <iomanip>
 //蒙特卡洛树搜索算法的主函数
+void testGetAllActions() {
+    cout << "========== 斗地主动作生成性能测试 ==========" << endl;
+    
+    // 构造一个典型的地主手牌（21张）：包含多种牌型
+    vector<int> testHand;
+    // 两个3
+    testHand.push_back(0); testHand.push_back(1);
+    // 两个4
+    testHand.push_back(4); testHand.push_back(5);
+    // 两个5
+    testHand.push_back(8); testHand.push_back(9);
+    // 两个6
+    testHand.push_back(12); testHand.push_back(13);
+    // 两个7
+    testHand.push_back(16); testHand.push_back(17);
+    // 两个8
+    testHand.push_back(20); testHand.push_back(21);
+    // 9,10,J,Q,K,A,2 各一张
+    testHand.push_back(24); // 9
+    testHand.push_back(28); // 10
+    testHand.push_back(32); // J
+    testHand.push_back(36); // Q
+    testHand.push_back(40); // K
+    testHand.push_back(44); // A
+    testHand.push_back(48); // 2
+    // 小王、大王
+    testHand.push_back(52);
+    testHand.push_back(53);
+    
+    // 农民手牌（简单填充）
+    vector<int> testHand2;
+    for (int i = 0; i < 17; ++i) testHand2.push_back(i);
+    
+    vector<int> hands[3] = {testHand, testHand2, testHand2};
+    vector<vector<int>> history;
+    GameState state(hands, {}, history, 0, 0);
+    
+    auto start = chrono::high_resolution_clock::now();
+    auto actions = state.getAllActions();
+    auto end = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
+    
+    cout << "【主动出牌测试】" << endl;
+    cout << "手牌张数: " << testHand.size() << endl;
+    cout << "生成合法动作数量: " << actions.size() << endl;
+    cout << "耗时: " << duration.count() << " 微秒 (" << fixed << setprecision(2) << duration.count() / 1000.0 << " 毫秒)" << endl;
+    
+    // 统计每种牌型的数量
+    map<string, int> typeCount;
+    for (auto& act : actions) {
+        int type = CardPatternAnalysis::getCardType(act);
+       cout << "动作点数: ";
+        for (int c : act) cout << CardPatternAnalysis::getCardValue(c) << " ";
+        cout << "类型: " << type << endl;
+        switch (type) {
+            case CardPatternAnalysis::ROCKET: typeCount["火箭"]++; break;
+            case CardPatternAnalysis::BOMB: typeCount["炸弹"]++; break;
+            case CardPatternAnalysis::SINGLE: typeCount["单张"]++; break;
+            case CardPatternAnalysis::PAIR: typeCount["对子"]++; break;
+            case CardPatternAnalysis::TRIPLE: typeCount["三张"]++; break;
+            case CardPatternAnalysis::STRAIGHT: typeCount["顺子"]++; break;
+            case CardPatternAnalysis::PAIR_SEQUENCE: typeCount["连对"]++; break;
+            case CardPatternAnalysis::TRIPLE_SEQUENCE: typeCount["飞机"]++; break;
+            case CardPatternAnalysis::THREE_WITH_ONE: typeCount["三带一"]++; break;
+            case CardPatternAnalysis::THREE_WITH_TWO: typeCount["三带二"]++; break;
+            case CardPatternAnalysis::TRIPLE_SEQUENCE_WITH_ONE: typeCount["飞机带单"]++; break;
+            case CardPatternAnalysis::TRIPLE_SEQUENCE_WITH_TWO_PAIRS: typeCount["飞机带对"]++; break;
+            case CardPatternAnalysis::QUAD_WITH_SINGLES: typeCount["四带两单"]++; break;
+            case CardPatternAnalysis::QUAD_WITH_PAIRS: typeCount["四带两对"]++; break;
+            default: typeCount["未知"]++; break;
+        }
+    }
+    cout << "牌型分布:" << endl;
+    for (auto& p : typeCount) {
+        cout << "  " << p.first << ": " << p.second << endl;
+    }
+    
+    // 输出一些示例动作（点数表示）
+    cout << "动作示例（随机5个）:" << endl;
+    vector<int> indices(actions.size());
+    iota(indices.begin(), indices.end(), 0);
+    shuffle(indices.begin(), indices.end(), mt19937{random_device{}()});
+    for (int i = 0; i < min(5, (int)actions.size()); ++i) {
+        auto& act = actions[indices[i]];
+        cout << "  ";
+        for (int card : act) {
+            cout << CardPatternAnalysis::getCardValue(card) << " ";
+        }
+        cout << endl;
+    }
+    // 测试跟牌情况：假设上家出了一个单张5
+    cout << "\n【跟牌测试】上家出单张5（点数5）" << endl;
+    vector<vector<int>> historyWithLast = { {8} }; // 假设上一轮出的是8号牌（黑桃5）
+    GameState state2(hands, {}, historyWithLast, 0, 1); // 当前玩家是农民甲
+    // 手动设置 lastActionPlayer 和 currentPassCount 模拟跟牌场景
+    state2.lastActionPlayer = 0; // 地主出的
+    state2.currentPlayer = 1;
+    // 注意：state2 的构造函数中 lastActionPlayer 默认为 -1，这里需要修正，但为了测试简便，直接调用 getAllActions 会自动根据 history 判断
+    // 重新构造更准确：让 history 包含上家的出牌
+    GameState state3(hands, {}, {{8}}, 0, 1); // history 里有一个出牌记录
+    // 但 state3 的 lastActionPlayer 仍为 -1，需要手动调整或依赖 isLeading 逻辑（history非空且 lastActionPlayer != currentPlayer）
+    // 为了简单，直接调用 state3.getAllActions()，它会根据 history.back() 作为上家牌
+    start = chrono::high_resolution_clock::now();
+    auto actions2 = state3.getAllActions();
+    end = chrono::high_resolution_clock::now();
+    duration = chrono::duration_cast<chrono::microseconds>(end - start);
+    cout << "合法动作数量: " << actions2.size() << endl;
+    cout << "耗时: " << duration.count() << " 微秒 (" << duration.count() / 1000.0 << " 毫秒)" << endl;
+    cout << "动作示例（前10个）:" << endl;
+    for (size_t i = 0; i < min(actions2.size(), (size_t)10); ++i) {
+        cout << "  ";
+        for (int card : actions2[i]) {
+            cout << CardPatternAnalysis::getCardValue(card) << " ";
+        }
+        cout << endl;
+    }
+    
+    // 测试炸弹和火箭的情况
+    cout << "\n【特殊牌型测试】手牌包含炸弹和火箭" << endl;
+    vector<int> bombHand;
+    // 四个3
+    for (int i = 0; i < 4; ++i) bombHand.push_back(i);
+    // 大小王
+    bombHand.push_back(52); bombHand.push_back(53);
+    // 再加一些单牌
+    bombHand.push_back(4); bombHand.push_back(5);
+    vector<int> handsBomb[3] = {bombHand, {}, {}};
+    GameState stateBomb(handsBomb, {}, history, 0, 0);
+    start = chrono::high_resolution_clock::now();
+    auto actionsBomb = stateBomb.getAllActions();
+    end = chrono::high_resolution_clock::now();
+    duration = chrono::duration_cast<chrono::microseconds>(end - start);
+    cout << "手牌张数: " << bombHand.size() << endl;
+    cout << "合法动作数量: " << actionsBomb.size() << endl;
+    cout << "耗时: " << duration.count() << " 微秒 (" << duration.count() / 1000.0 << " 毫秒)" << endl;
+    bool hasRocket = false, hasBomb = false;
+    for (auto& act : actionsBomb) {
+        if (act.size() == 2 && CardPatternAnalysis::getCardValue(act[0]) == 16 && CardPatternAnalysis::getCardValue(act[1]) == 17)
+            hasRocket = true;
+        if (act.size() == 4 && CardPatternAnalysis::getCardValue(act[0]) == 3)
+            hasBomb = true;
+    }
+    cout << "是否包含火箭: " << (hasRocket ? "是" : "否") << endl;
+    cout << "是否包含炸弹(四个3): " << (hasBomb ? "是" : "否") << endl;
+    
+    cout << "========== 测试结束 ==========" << endl;
+    exit(0); // 测试完成后直接退出，不进行正常的 Bot 交互
+}
 int main() {
-    string line, all;
-    while (getline(cin, line)) all += line;
-    Json::Reader reader;
-    Json::Value input;
-    if (!reader.parse(all, input)) {
-        cerr << "Failed to parse JSON" << endl;
-        return 1;
-    }
+    testGetAllActions();
+    // string line, all;
+    // while (getline(cin, line)) all += line;
+    // Json::Reader reader;
+    // Json::Value input;
+    // if (!reader.parse(all, input)) {
+    //     cerr << "Failed to parse JSON" << endl;
+    //     return 1;
+    // }
 
-    int turnID = input["responses"].size();
-    Json::Value request = input["requests"][turnID];
+    // int turnID = input["responses"].size();
+    // Json::Value request = input["requests"][turnID];
 
-    // ---------- 叫牌阶段 ----------
-    if (request.isMember("bid")) {
-        // 获取当前手牌（叫牌阶段 own 字段存在）
-        vector<int> hand;
-        if (request.isMember("own")) {
-            for (Json::UInt i = 0; i < request["own"].size(); ++i)
-                hand.push_back(request["own"][i].asInt());
-        }
-        // 获取叫牌历史
-        vector<int> bidHistory;
-        if (request["bid"].isArray()) {
-            for (Json::UInt i = 0; i < request["bid"].size(); ++i)
-                bidHistory.push_back(request["bid"][i].asInt());
-        }
-        bool isFirst = bidHistory.empty();
-        bool lastTwoPassed = (bidHistory.size() >= 2 && bidHistory[0] == 0 && bidHistory[1] == 0);
-        int bid = CardPatternAnalysis::decideBid(hand, isFirst, lastTwoPassed);
-        Json::Value ret;
-        ret["response"] = bid;
-        ret["data"] = input["data"];
-        Json::FastWriter writer;
-        cout << writer.write(ret) << endl;
-        return 0;
-    }
+    // // ---------- 叫牌阶段 ----------
+    // if (request.isMember("bid")) {
+    //     // 获取当前手牌（叫牌阶段 own 字段存在）
+    //     vector<int> hand;
+    //     if (request.isMember("own")) {
+    //         for (Json::UInt i = 0; i < request["own"].size(); ++i)
+    //             hand.push_back(request["own"][i].asInt());
+    //     }
+    //     // 获取叫牌历史
+    //     vector<int> bidHistory;
+    //     if (request["bid"].isArray()) {
+    //         for (Json::UInt i = 0; i < request["bid"].size(); ++i)
+    //             bidHistory.push_back(request["bid"][i].asInt());
+    //     }
+    //     bool isFirst = bidHistory.empty();
+    //     bool lastTwoPassed = (bidHistory.size() >= 2 && bidHistory[0] == 0 && bidHistory[1] == 0);
+    //     int bid = CardPatternAnalysis::decideBid(hand, isFirst, lastTwoPassed);
+    //     Json::Value ret;
+    //     ret["response"] = bid;
+    //     ret["data"] = input["data"];
+    //     Json::FastWriter writer;
+    //     cout << writer.write(ret) << endl;
+    //     return 0;
+    // }
 
-    // ---------- 出牌阶段 ----------
-    // 1. 恢复当前手牌和底牌（参考官方样例的维护方式）
-    vector<int> currentHand;
-    Json::Value currentPublicCard;
-    int myPosition = -1, landlordPosition = -1, landlordBid = -1;
+    // // ---------- 出牌阶段 ----------
+    // // 1. 恢复当前手牌和底牌（参考官方样例的维护方式）
+    // vector<int> currentHand;
+    // Json::Value currentPublicCard;
+    // int myPosition = -1, landlordPosition = -1, landlordBid = -1;
 
-    // 遍历所有历史回合，恢复状态
-    for (int i = 0; i <= turnID; ++i) {
-        Json::Value req = input["requests"][i];
+    // // 遍历所有历史回合，恢复状态
+    // for (int i = 0; i <= turnID; ++i) {
+    //     Json::Value req = input["requests"][i];
 
-        // 当请求包含 publiccard 时，说明这是第一回合的出牌请求（叫分结束后）
-        if (req.isMember("publiccard") && req.isMember("landlord")) {
-            landlordPosition = req["landlord"].asInt();
-            landlordBid = req["finalbid"].asInt();
-            myPosition = req["pos"].asInt();
-            // 底牌
-            currentPublicCard = req["publiccard"];
-            // 手牌初始化（含底牌）
-            if (req.isMember("own") && req["own"].size() > 0) {
-                currentHand.clear();
-                for (Json::UInt j = 0; j < req["own"].size(); ++j)
-                    currentHand.push_back(req["own"][j].asInt());
-            }
-             if (landlordPosition == myPosition) {
-            for (Json::UInt j = 0; j < currentPublicCard.size(); ++j)
-                currentHand.push_back(currentPublicCard[j].asInt());
-        }
-        }
+    //     // 当请求包含 publiccard 时，说明这是第一回合的出牌请求（叫分结束后）
+    //     if (req.isMember("publiccard") && req.isMember("landlord")) {
+    //         landlordPosition = req["landlord"].asInt();
+    //         landlordBid = req["finalbid"].asInt();
+    //         myPosition = req["pos"].asInt();
+    //         // 底牌
+    //         currentPublicCard = req["publiccard"];
+    //         // 手牌初始化（含底牌）
+    //         if (req.isMember("own") && req["own"].size() > 0) {
+    //             currentHand.clear();
+    //             for (Json::UInt j = 0; j < req["own"].size(); ++j)
+    //                 currentHand.push_back(req["own"][j].asInt());
+    //         }
+    //          if (landlordPosition == myPosition) {
+    //         for (Json::UInt j = 0; j < currentPublicCard.size(); ++j)
+    //             currentHand.push_back(currentPublicCard[j].asInt());
+    //     }
+    //     }
 
-        // 如果请求包含 own 且当前手牌为空（兜底），也进行初始化
-        if (req.isMember("own") && req["own"].size() > 0 && currentHand.empty()) {
-            for (Json::UInt j = 0; j < req["own"].size(); ++j)
-                currentHand.push_back(req["own"][j].asInt());
-        }
+    //     // 如果请求包含 own 且当前手牌为空（兜底），也进行初始化
+    //     if (req.isMember("own") && req["own"].size() > 0 && currentHand.empty()) {
+    //         for (Json::UInt j = 0; j < req["own"].size(); ++j)
+    //             currentHand.push_back(req["own"][j].asInt());
+    //     }
 
-        // 如果不是最后一回合，根据历史响应（自己出的牌）更新手牌
-        if (i < turnID) {
-            Json::Value resp = input["responses"][i];
-            if (resp.isArray()) {
-                for (Json::UInt j = 0; j < resp.size(); ++j) {
-                    int card = resp[j].asInt();
-                    auto it = find(currentHand.begin(), currentHand.end(), card);
-                    if (it != currentHand.end()) currentHand.erase(it);
-                }
-            }
-        }
-    }
+    //     // 如果不是最后一回合，根据历史响应（自己出的牌）更新手牌
+    //     if (i < turnID) {
+    //         Json::Value resp = input["responses"][i];
+    //         if (resp.isArray()) {
+    //             for (Json::UInt j = 0; j < resp.size(); ++j) {
+    //                 int card = resp[j].asInt();
+    //                 auto it = find(currentHand.begin(), currentHand.end(), card);
+    //                 if (it != currentHand.end()) currentHand.erase(it);
+    //             }
+    //         }
+    //     }
+    // }
 
-    // 2. 获取当前回合的请求（用于决策）
-    Json::Value currentRequest = input["requests"][turnID];
-    // 注意：当前请求可能没有 own 字段，但 history 和 publiccard 可能存在
-    // GameAI bot(currentRequest["history"], currentPublicCard, currentHand);
-     vector<int> move;// = bot.decideMove();
+    // // 2. 获取当前回合的请求（用于决策）
+    // Json::Value currentRequest = input["requests"][turnID];
+    // // 注意：当前请求可能没有 own 字段，但 history 和 publiccard 可能存在
+    // // GameAI bot(currentRequest["history"], currentPublicCard, currentHand);
+    //  vector<int> move;// = bot.decideMove();
 
-    // 3. 输出决策
-    Json::Value ret;
-    Json::Value output(Json::arrayValue);
-    for (int card : move) output.append(card);
-    ret["response"] = output;
-    ret["data"] = input["data"];
-    Json::FastWriter writer;
-    cout << writer.write(ret) << endl;
+    // // 3. 输出决策
+    // Json::Value ret;
+    // Json::Value output(Json::arrayValue);
+    // for (int card : move) output.append(card);
+    // ret["response"] = output;
+    // ret["data"] = input["data"];
+    // Json::FastWriter writer;
+    // cout << writer.write(ret) << endl;
 
     return 0;
 }
