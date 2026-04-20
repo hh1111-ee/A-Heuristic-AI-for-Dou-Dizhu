@@ -370,8 +370,8 @@ namespace PatternCheck{
             if (exact) {
                 int total = 0;
                 for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total % 2 != 0 || total < 6 || total > 12) return false;
                 int len = total / 2;
+                if (total % 2 != 0 || total < 6 || len > 10) return false;
                 vector<int> vals;
                 for (int i = 3; i <= 17; ++i) {
                     if (cnt[i] == 2) vals.push_back(i);
@@ -1451,20 +1451,20 @@ vector<int> getBestActionByPriority(const vector<int>&hand,const vector<int>&las
     }
     using CheckFunc=function<bool(CardPattern&)>;
     vector<CheckFunc> checkers={
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<Rocket>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<Bomb>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<Single>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<Pair>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<Triple>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<Straight>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<PairSequence>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<TripleSequence>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<TripleWithOne>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<TripleWithTwo>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<QuadWithSingles>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<QuadWithPairs>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<PlanWithSingles>(p));},
-        [&](CardPattern& p) ->bool {return PatternCheck::check(cnt,lastMovePatterns,get<PlanWithPairs>(p));}
+        [&](CardPattern& p) ->bool {Rocket r; if (PatternCheck::check(cnt, lastMovePatterns, r)) { p = r; return true; } return false;},
+ [&](CardPattern& p) ->bool {Bomb b; if (PatternCheck::check(cnt, lastMovePatterns, b)) { p = b; return true; } return false;  },
+ [&](CardPattern& p) ->bool {Single s; if (PatternCheck::check(cnt, lastMovePatterns, s)) { p = s; return true; } return false; },
+ [&](CardPattern& p) ->bool {Pair pr; if (PatternCheck::check(cnt, lastMovePatterns, pr)) { p = pr; return true; } return false; },
+ [&](CardPattern& p) ->bool {Triple t; if (PatternCheck::check(cnt, lastMovePatterns, t)) { p = t; return true; } return false; },
+ [&](CardPattern& p) ->bool {Straight st; if (PatternCheck::check(cnt, lastMovePatterns, st)) { p = st; return true; } return false; },
+ [&](CardPattern& p) ->bool {PairSequence ps; if (PatternCheck::check(cnt, lastMovePatterns, ps)) { p = ps; return true; } return false; },
+ [&](CardPattern& p) ->bool {TripleSequence ts; if (PatternCheck::check(cnt, lastMovePatterns, ts)) { p = ts; return true; } return false; },
+ [&](CardPattern& p) ->bool {TripleWithOne two1; if (PatternCheck::check(cnt, lastMovePatterns, two1)) { p = two1; return true; } return false; },
+ [&](CardPattern& p) ->bool {TripleWithTwo two2; if (PatternCheck::check(cnt, lastMovePatterns, two2)) { p = two2; return true; } return false;  },
+ [&](CardPattern& p) ->bool {QuadWithSingles qws; if (PatternCheck::check(cnt, lastMovePatterns, qws)) { p = qws; return true; } return false; },
+ [&](CardPattern& p) ->bool {QuadWithPairs qwp; if (PatternCheck::check(cnt, lastMovePatterns, qwp)) { p = qwp; return true; } return false; },
+ [&](CardPattern& p) ->bool { PlanWithSingles pws; if (PatternCheck::check(cnt, lastMovePatterns, pws)) { p = pws; return true; } return false;  },
+ [&](CardPattern& p) ->bool {PlanWithPairs pwp; if (PatternCheck::check(cnt, lastMovePatterns, pwp)) { p = pwp; return true; } return false; }
     };
     for(auto& check:checkers){
         CardPattern pattern;
