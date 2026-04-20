@@ -12,7 +12,8 @@
 #include<functional>
 #include<cstring>
 #include<map>
-#include"jsoncpp/json.h"
+#include<numeric>
+// #include"jsoncpp/json.h"
 using namespace std;
 /*斗地主bot --botzone作业
 叫分及确定地主
@@ -199,261 +200,547 @@ QuadWithPairs, PlanWithSingles
 , PlanWithPairs>;
 //====牌型检测命名空间===//
 namespace PatternCheck{
-    bool check(const int cnt[18],const vector<int>& lastMovePatterns,Rocket&){
-        return cnt[16]>=1 && cnt[17]>=1;
+    bool check(const int cnt[18], const vector<int>& /*lastMovePatterns*/, Rocket&, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            return total == 2 && cnt[16] == 1 && cnt[17] == 1;
+        }
+        else {
+            return cnt[16] >= 1 && cnt[17] >= 1;
+        }
     }
-    bool check(const int cnt[18],const vector<int>& lastMovePatterns,Bomb& bomb){
-        for(int v=3;v<=17;v++){
-            if(cnt[v]>=4){
-                bomb.value=v;
-                if(!lastMovePatterns.empty()&& lastMovePatterns.size()==4&&v<=lastMovePatterns[0])
-                    continue;
-                    return true;
-                
-            } 
-        }
-        return false;
-    }
-    bool check(const int cnt[18],const vector<int>& lastMovePatterns,Single& single){
-        for(int v=3;v<=17;v++){
-            if(cnt[v]>=1){
-                if(!lastMovePatterns.empty()&&lastMovePatterns[0]>=v)
-                    continue;
-                    single.value=v;
-                    return true;
-            }
-        }
-        return false;
-    }
-    bool check(const int cnt[18],const vector<int>& lastMovePatterns,Pair& pair){
-        for(int v=3;v<=17;v++){
-            
-            if(cnt[v]>=2){
-                if(!lastMovePatterns.empty()&&lastMovePatterns[0]>=v)
-                    continue;
-                    pair.value=v;
-                    return true;
-            }
-        }
-        return false;
-    }
-     bool check(const int cnt[18],const vector<int>& lastMovePatterns,Triple& triple){
-        for(int v=3;v<=17;v++){
-            if(cnt[v]>=3){
-                if(!lastMovePatterns.empty()&&lastMovePatterns[0]>=v)
-                    continue;
-                    triple.value=v;
-                    return true;
-            }
-        }
-        return false;
-    }
-    bool check(const int cnt[18],const vector<int>& lastMovePatterns,Straight& straight){
-        int maxlen=0,beststart=-1;
-        for(int start=3;start<=14;start++){
-            int len=0;
-            while(start+len<=14&&cnt[start+len]>=1) len++;
-            if(len>=5&&len>maxlen){
-                maxlen=len;
-                beststart=start;
-            }
-            start+=len;
-        }
-        if(beststart==-1) return false;
-        if(!lastMovePatterns.empty()){
-            int lastlen=lastMovePatterns.size();
-            int laststart=lastMovePatterns[0];
-            if(maxlen!=lastlen||beststart<=laststart) return false;
-        }
-        straight.start=beststart;
-        straight.len=maxlen;
-        return true;
-    }
-    bool check(const int cnt[18],const vector<int>& lastMovePatterns,PairSequence& ps){
-        int maxlen=0,beststart=-1;
-        for(int start=3;start<=14;start++){
-            int len=0;
-            while(start+len<=14&&cnt[start+len]>=2) len++;
-            if(len>=3&&len>maxlen){
-                maxlen=len;
-                beststart=start;
-            }
-            start+=len;
-        }
-        if(beststart==-1) return false;
-        if(!lastMovePatterns.empty()){
-            int lastlen=lastMovePatterns.size()/2;
-            int laststart=lastMovePatterns[0];
-            if(maxlen!=lastlen||beststart<=laststart) return false;
-        }
-        ps.start=beststart;
-        ps.len=maxlen;
-        return true;
-    }
-     bool check(const int cnt[18],const vector<int>& lastMovePatterns,TripleSequence& ts){
-        int maxlen=0,beststart=-1;
-        for(int start=3;start<=14;start++){
-            int len=0;
-            while(start+len<=14&&cnt[start+len]>=3) len++;
-            if(len>=2&&len>maxlen){
-                maxlen=len;
-                beststart=start;
-            }
-            start+=len;
-        }
-        if(beststart==-1) return false;
-        if(!lastMovePatterns.empty()){
-            int lastlen=lastMovePatterns.size()/3;
-            int laststart=lastMovePatterns[0];
-            if(maxlen!=lastlen||beststart<=laststart) return false;
-        }
-        ts.start=beststart;
-        ts.len=maxlen;
-        return true;
-     }
-     bool check(const int cnt[18],const vector<int>& lastMovePatterns,TripleWithOne& tws){
-        for(int v=3;v<=17;v++){
-            if(cnt[v]>=3){
-                if(!lastMovePatterns.empty()){
-                     int lastTriple=lastMovePatterns[0];
-                    if(v<=lastTriple) continue;
+
+        // Bomb
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Bomb& bomb, bool exact = false) {
+            if (exact) {
+                int total = 0, quadVal = -1;
+                for (int v = 3; v <= 17; ++v) {
+                    total += cnt[v];
+                    if (cnt[v] == 4) quadVal = v;
+                    else if (cnt[v] != 0) return false;
                 }
-                for(int s=3;s<=17;s++){
-                    if(s!=v&&cnt[s]>=1){
-                        tws.triple=v;
-                        tws.single=s;
+                if (total == 4 && quadVal != -1) {
+                    bomb.value = quadVal;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] >= 4) {
+                        bomb.value = v;
+                        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4 && v <= lastMovePatterns[0])
+                            continue;
                         return true;
                     }
                 }
+                return false;
             }
         }
-        return false;
-     }
-     bool check(const int cnt[18],const vector<int>& lastMovePatterns,TripleWithTwo& tws){
-        for(int v=3;v<=17;v++){
-            if(cnt[v]>=3){
-                if(!lastMovePatterns.empty()){
-                     int lastTriple=lastMovePatterns[0];
-                    if(v<=lastTriple) continue;
+
+        // Single
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Single& single, bool exact = false) {
+            if (exact) {
+                int total = 0, val = -1;
+                for (int v = 3; v <= 17; ++v) {
+                    total += cnt[v];
+                    if (cnt[v] == 1) val = v;
+                    else if (cnt[v] != 0) return false;
                 }
-                for(int s=3;s<=17;s++){
-                    if(s!=v&&cnt[s]>=2){
-                        tws.triple=v;
-                        tws.pair=s;
+                if (total == 1 && val != -1) {
+                    single.value = val;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] >= 1) {
+                        if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
+                        single.value = v;
                         return true;
                     }
                 }
+                return false;
             }
         }
-        return false;
-     }
-     bool check(const int cnt[18],const vector<int>& lastMovePatterns,QuadWithSingles& qws){
-        for(int q=3;q<=17;q++){
-            if(cnt[q]>=4){
-                if(!lastMovePatterns.empty()){
-                     int lastQuad=lastMovePatterns[0];
-                    if(q<=lastQuad) continue;
+
+        // Pair
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Pair& pair, bool exact = false) {
+            if (exact) {
+                int total = 0, val = -1;
+                for (int v = 3; v <= 17; ++v) {
+                    total += cnt[v];
+                    if (cnt[v] == 2) val = v;
+                    else if (cnt[v] != 0) return false;
                 }
+                if (total == 2 && val != -1) {
+                    pair.value = val;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] >= 2) {
+                        if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
+                        pair.value = v;
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        // Triple
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Triple& triple, bool exact = false) {
+            if (exact) {
+                int total = 0, val = -1;
+                for (int v = 3; v <= 17; ++v) {
+                    total += cnt[v];
+                    if (cnt[v] == 3) val = v;
+                    else if (cnt[v] != 0) return false;
+                }
+                if (total == 3 && val != -1) {
+                    triple.value = val;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] >= 3) {
+                        if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
+                        triple.value = v;
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        // Straight
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Straight& straight, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total < 5 || total > 12) return false;
+                int start = -1, len = 0;
+                for (int i = 3; i <= 14; ++i) {
+                    if (cnt[i] == 1) {
+                        if (start == -1) start = i;
+                        len++;
+                        if (i == 14 || cnt[i + 1] != 1) break;
+                    }
+                    else if (cnt[i] != 0) return false;
+                }
+                if (len == total && len >= 5) {
+                    straight.start = start;
+                    straight.len = len;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                int maxlen = 0, beststart = -1;
+                for (int start = 3; start <= 14; ++start) {
+                    int len = 0;
+                    while (start + len <= 14 && cnt[start + len] >= 1) len++;
+                    if (len >= 5 && len > maxlen) {
+                        maxlen = len;
+                        beststart = start;
+                    }
+                    start += len;
+                }
+                if (beststart == -1) return false;
+                if (!lastMovePatterns.empty()) {
+                    int lastlen = lastMovePatterns.size();
+                    int laststart = lastMovePatterns[0];
+                    if (maxlen != lastlen || beststart <= laststart) return false;
+                }
+                straight.start = beststart;
+                straight.len = maxlen;
+                return true;
+            }
+        }
+
+        // PairSequence
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, PairSequence& ps, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total % 2 != 0 || total < 6 || total > 12) return false;
+                int len = total / 2;
+                vector<int> vals;
+                for (int i = 3; i <= 17; ++i) {
+                    if (cnt[i] == 2) vals.push_back(i);
+                    else if (cnt[i] != 0) return false;
+                }
+                if ((int)vals.size() != len) return false;
+                bool cont = true;
+                for (size_t i = 1; i < vals.size(); ++i) {
+                    if (vals[i] != vals[i - 1] + 1) { cont = false; break; }
+                }
+                if (cont && len >= 3) {
+                    ps.start = vals[0];
+                    ps.len = len;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                int maxlen = 0, beststart = -1;
+                for (int start = 3; start <= 14; ++start) {
+                    int len = 0;
+                    while (start + len <= 14 && cnt[start + len] >= 2) len++;
+                    if (len >= 3 && len > maxlen) {
+                        maxlen = len;
+                        beststart = start;
+                    }
+                    start += len;
+                }
+                if (beststart == -1) return false;
+                if (!lastMovePatterns.empty()) {
+                    int lastlen = lastMovePatterns.size() / 2;
+                    int laststart = lastMovePatterns[0];
+                    if (maxlen != lastlen || beststart <= laststart) return false;
+                }
+                ps.start = beststart;
+                ps.len = maxlen;
+                return true;
+            }
+        }
+
+        // TripleSequence (飞机无翼)
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleSequence& ts, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total % 3 != 0 || total < 6 || total > 12) return false;
+                int len = total / 3;
+                vector<int> vals;
+                for (int i = 3; i <= 17; ++i) {
+                    if (cnt[i] == 3) vals.push_back(i);
+                    else if (cnt[i] != 0) return false;
+                }
+                if ((int)vals.size() != len) return false;
+                bool cont = true;
+                for (size_t i = 1; i < vals.size(); ++i) {
+                    if (vals[i] != vals[i - 1] + 1) { cont = false; break; }
+                }
+                if (cont && len >= 2) {
+                    ts.start = vals[0];
+                    ts.len = len;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                int maxlen = 0, beststart = -1;
+                for (int start = 3; start <= 14; ++start) {
+                    int len = 0;
+                    while (start + len <= 14 && cnt[start + len] >= 3) len++;
+                    if (len >= 2 && len > maxlen) {
+                        maxlen = len;
+                        beststart = start;
+                    }
+                    start += len;
+                }
+                if (beststart == -1) return false;
+                if (!lastMovePatterns.empty()) {
+                    int lastlen = lastMovePatterns.size() / 3;
+                    int laststart = lastMovePatterns[0];
+                    if (maxlen != lastlen || beststart <= laststart) return false;
+                }
+                ts.start = beststart;
+                ts.len = maxlen;
+                return true;
+            }
+        }
+
+        // TripleWithOne
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleWithOne& tws, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total != 4) return false;
+                int tripleVal = -1, singleVal = -1;
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] == 3) tripleVal = v;
+                    else if (cnt[v] == 1) singleVal = v;
+                    else if (cnt[v] != 0) return false;
+                }
+                if (tripleVal != -1 && singleVal != -1) {
+                    tws.triple = tripleVal;
+                    tws.single = singleVal;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] >= 3) {
+                        if (!lastMovePatterns.empty()) {
+                            int lastTriple = lastMovePatterns[0];
+                            if (v <= lastTriple) continue;
+                        }
+                        for (int s = 3; s <= 17; ++s) {
+                            if (s != v && cnt[s] >= 1) {
+                                tws.triple = v;
+                                tws.single = s;
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+        }
+
+        // TripleWithTwo
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleWithTwo& tws, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total != 5) return false;
+                int tripleVal = -1, pairVal = -1;
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] == 3) tripleVal = v;
+                    else if (cnt[v] == 2) pairVal = v;
+                    else if (cnt[v] != 0) return false;
+                }
+                if (tripleVal != -1 && pairVal != -1) {
+                    tws.triple = tripleVal;
+                    tws.pair = pairVal;
+                    return true;
+                }
+                return false;
+            }
+            else {
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] >= 3) {
+                        if (!lastMovePatterns.empty()) {
+                            int lastTriple = lastMovePatterns[0];
+                            if (v <= lastTriple) continue;
+                        }
+                        for (int s = 3; s <= 17; ++s) {
+                            if (s != v && cnt[s] >= 2) {
+                                tws.triple = v;
+                                tws.pair = s;
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+        }
+
+        // QuadWithSingles
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, QuadWithSingles& qws, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total != 6) return false;
+                int quadVal = -1;
                 vector<int> singles;
-                for(int s=3;s<=17;s++){
-                    if(s!=q&&cnt[s]>=2){
-                        singles.push_back(s);
-                    }
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] == 4) quadVal = v;
+                    else if (cnt[v] == 1) singles.push_back(v);
+                    else if (cnt[v] != 0) return false;
                 }
-                if(singles.size()>=2){
-                    qws.quad=q;
-                    qws.single1=singles[0];
-                    qws.single2=singles[1];
+                if (quadVal != -1 && singles.size() == 2) {
+                    qws.quad = quadVal;
+                    qws.single1 = singles[0];
+                    qws.single2 = singles[1];
                     return true;
                 }
+                return false;
+            }
+            else {
+                for (int q = 3; q <= 17; ++q) {
+                    if (cnt[q] >= 4) {
+                        if (!lastMovePatterns.empty()) {
+                            int lastQuad = lastMovePatterns[0];
+                            if (q <= lastQuad) continue;
+                        }
+                        vector<int> singles;
+                        for (int s = 3; s <= 17; ++s) {
+                            if (s != q && cnt[s] >= 1) singles.push_back(s);
+                        }
+                        if (singles.size() >= 2) {
+                            qws.quad = q;
+                            qws.single1 = singles[0];
+                            qws.single2 = singles[1];
+                            return true;
+                        }
+                    }
+                }
+                return false;
             }
         }
-        return false;
-     }
-     bool check(const int cnt[18],const vector<int>& lastMovePatterns,QuadWithPairs& qwp){
-        for(int q=3;q<=17;q++){
-            if(cnt[q]>=4){
-                if(!lastMovePatterns.empty()){
-                     int lastQuad=lastMovePatterns[0];
-                    if(q<=lastQuad) continue;
-                }
+
+        // QuadWithPairs
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, QuadWithPairs& qwp, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total != 8) return false;
+                int quadVal = -1;
                 vector<int> pairs;
-                for(int s=3;s<=17;s++){
-                    if(s!=q&&cnt[s]>=2){
-                        pairs.push_back(s);
-                    }
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] == 4) quadVal = v;
+                    else if (cnt[v] == 2) pairs.push_back(v);
+                    else if (cnt[v] != 0) return false;
                 }
-                if(pairs.size()>=2){
-                    qwp.quad=q;
-                    qwp.pair1=pairs[0];
-                    qwp.pair2=pairs[1];
+                if (quadVal != -1 && pairs.size() == 2) {
+                    qwp.quad = quadVal;
+                    qwp.pair1 = pairs[0];
+                    qwp.pair2 = pairs[1];
                     return true;
                 }
+                return false;
+            }
+            else {
+                for (int q = 3; q <= 17; ++q) {
+                    if (cnt[q] >= 4) {
+                        if (!lastMovePatterns.empty()) {
+                            int lastQuad = lastMovePatterns[0];
+                            if (q <= lastQuad) continue;
+                        }
+                        vector<int> pairs;
+                        for (int s = 3; s <= 17; ++s) {
+                            if (s != q && cnt[s] >= 2) pairs.push_back(s);
+                        }
+                        if (pairs.size() >= 2) {
+                            qwp.quad = q;
+                            qwp.pair1 = pairs[0];
+                            qwp.pair2 = pairs[1];
+                            return true;
+                        }
+                    }
+                }
+                return false;
             }
         }
-        return false;
-     }
-     bool check(const int cnt[18],const vector<int>& lastMovePatterns,PlanWithSingles&pws){
-            int maxlen=0,beststart=-1;
-            for(int start=3;start<=14;start++){
-                int len=0;
-                while(start+len<=14&&cnt[start+len]>=3) len++;
-                if(len>=2&&len>maxlen){
-                    maxlen=len;
-                    beststart=start;
+
+        // PlanWithSingles (飞机带单牌)
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, PlanWithSingles& pws, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total % 4 != 0 || total < 8) return false;
+                int k = total / 4;
+                vector<int> triples, singles;
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] == 3) triples.push_back(v);
+                    else if (cnt[v] == 1) singles.push_back(v);
+                    else if (cnt[v] != 0) return false;
                 }
-                start+=len;
+                if ((int)triples.size() != k || (int)singles.size() != k) return false;
+                // 检查三张部分是否连续
+                bool cont = true;
+                for (int i = 1; i < k; ++i) {
+                    if (triples[i] != triples[i - 1] + 1) { cont = false; break; }
+                }
+                if (!cont) return false;
+                // 单牌不能与三张点数重复（已经通过 cnt 检查，因为三张部分占3张，单牌占1张，不会重复）
+                pws.start = triples[0];
+                pws.len = k;
+                pws.singles = singles;
+                sort(pws.singles.begin(), pws.singles.end()); // 确保有序
+                return true;
             }
-            if(beststart==-1) return false;
-            if(!lastMovePatterns.empty()){
-                int lastlen=lastMovePatterns.size()/4;
-                int laststart=lastMovePatterns[0];
-                if(maxlen!=lastlen||beststart<=laststart) return false;
-            }
-            int tmpCnt[18];
-            memcpy(tmpCnt,cnt,sizeof(tmpCnt));
-            for(int j=0;j<maxlen;j++)tmpCnt[beststart+j]-=3;
-            vector<int> singles;
-            for(int v=3;v<=17;v++){
-                for(int k=0;k<tmpCnt[v];k++) singles.push_back(v);
-            }
-            if((int)singles.size()<maxlen) return false;
-            sort(singles.begin(), singles.end());
-            pws.start=beststart;
-            pws.len=maxlen;
-            pws.singles.assign(singles.begin(), singles.begin()+maxlen);
-            return true;
-     }
-        bool check(const int cnt[18],const vector<int>& lastMovePatterns,PlanWithPairs& pwp){
-                int maxlen=0,beststart=-1;
-                for(int start=3;start<=14;start++){
-                    int len=0;
-                    while(start+len<=14&&cnt[start+len]>=3) len++;
-                    if(len>=2&&len>maxlen){
-                        maxlen=len;
-                        beststart=start;
+            else {
+                int maxlen = 0, beststart = -1;
+                for (int start = 3; start <= 14; ++start) {
+                    int len = 0;
+                    while (start + len <= 14 && cnt[start + len] >= 3) len++;
+                    if (len >= 2 && len > maxlen) {
+                        maxlen = len;
+                        beststart = start;
                     }
-                    start+=len;
+                    start += len;
                 }
-                if(beststart==-1) return false;
-                if(!lastMovePatterns.empty()){
-                    int lastlen=lastMovePatterns.size()/5;
-                    int laststart=lastMovePatterns[0];
-                    if(maxlen!=lastlen||beststart<=laststart) return false;
+                if (beststart == -1) return false;
+                if (!lastMovePatterns.empty()) {
+                    int lastlen = lastMovePatterns.size() / 4;
+                    int laststart = lastMovePatterns[0];
+                    if (maxlen != lastlen || beststart <= laststart) return false;
                 }
                 int tmpCnt[18];
-                memcpy(tmpCnt,cnt,sizeof(tmpCnt));
-                for(int j=0;j<maxlen;j++)tmpCnt[beststart+j]-=3;
-                vector<int> pairs;
-                for(int v=3;v<=17;v++){
-                    for(int k=0;k<tmpCnt[v]/2;k++) pairs.push_back(v);
+                memcpy(tmpCnt, cnt, sizeof(tmpCnt));
+                for (int j = 0; j < maxlen; ++j) tmpCnt[beststart + j] -= 3;
+                vector<int> singles;
+                for (int v = 3; v <= 17; ++v) {
+                    for (int k = 0; k < tmpCnt[v]; ++k) singles.push_back(v);
                 }
-                if((int)pairs.size()<maxlen) return false;
-                sort(pairs.begin(), pairs.end());
-                pwp.start=beststart;
-                pwp.len=maxlen;
-                pwp.pairs.assign(pairs.begin(), pairs.begin()+maxlen);
+                if ((int)singles.size() < maxlen) return false;
+                sort(singles.begin(), singles.end());
+                pws.start = beststart;
+                pws.len = maxlen;
+                pws.singles.assign(singles.begin(), singles.begin() + maxlen);
                 return true;
+            }
+        }
+
+        // PlanWithPairs (飞机带对子)
+        bool check(const int cnt[18], const vector<int>& lastMovePatterns, PlanWithPairs& pwp, bool exact = false) {
+            if (exact) {
+                int total = 0;
+                for (int i = 3; i <= 17; ++i) total += cnt[i];
+                if (total % 5 != 0 || total < 10) return false;
+                int k = total / 5;
+                vector<int> triples, pairs;
+                for (int v = 3; v <= 17; ++v) {
+                    if (cnt[v] == 3) triples.push_back(v);
+                    else if (cnt[v] == 2) pairs.push_back(v);
+                    else if (cnt[v] != 0) return false;
+                }
+                if ((int)triples.size() != k || (int)pairs.size() != k) return false;
+                bool cont = true;
+                for (int i = 1; i < k; ++i) {
+                    if (triples[i] != triples[i - 1] + 1) { cont = false; break; }
+                }
+                if (!cont) return false;
+                pwp.start = triples[0];
+                pwp.len = k;
+                pwp.pairs = pairs;
+                sort(pwp.pairs.begin(), pwp.pairs.end());
+                return true;
+            }
+            else {
+                int maxlen = 0, beststart = -1;
+                for (int start = 3; start <= 14; ++start) {
+                    int len = 0;
+                    while (start + len <= 14 && cnt[start + len] >= 3) len++;
+                    if (len >= 2 && len > maxlen) {
+                        maxlen = len;
+                        beststart = start;
+                    }
+                    start += len;
+                }
+                if (beststart == -1) return false;
+                if (!lastMovePatterns.empty()) {
+                    int lastlen = lastMovePatterns.size() / 5;
+                    int laststart = lastMovePatterns[0];
+                    if (maxlen != lastlen || beststart <= laststart) return false;
+                }
+                int tmpCnt[18];
+                memcpy(tmpCnt, cnt, sizeof(tmpCnt));
+                for (int j = 0; j < maxlen; ++j) tmpCnt[beststart + j] -= 3;
+                vector<int> pairs;
+                for (int v = 3; v <= 17; ++v) {
+                    for (int k = 0; k < tmpCnt[v] / 2; ++k) pairs.push_back(v);
+                }
+                if ((int)pairs.size() < maxlen) return false;
+                sort(pairs.begin(), pairs.end());
+                pwp.start = beststart;
+                pwp.len = maxlen;
+                pwp.pairs.assign(pairs.begin(), pairs.begin() + maxlen);
+                return true;
+            }
         }
         inline vector<vector<int>> enumerateRocket(const int cnt[18]) {
             if (cnt[16] >= 1 && cnt[17] >= 1) return {{16, 17}};
@@ -785,33 +1072,33 @@ public:
             for (int v : patterns) cnt[v]++;
             vector<int> emptyLast;  // 主动出牌时没有上家牌
             Rocket r;
-            if (PatternCheck::check(cnt, emptyLast, r)) return ROCKET;
+            if (PatternCheck::check(cnt, emptyLast, r,true)) return ROCKET;
             Bomb b;
-            if (PatternCheck::check(cnt, emptyLast, b)) return BOMB;
+            if (PatternCheck::check(cnt, emptyLast, b,true)) return BOMB;
             Single s;
-            if (PatternCheck::check(cnt, emptyLast, s)) return SINGLE;
+            if (PatternCheck::check(cnt, emptyLast, s,true)) return SINGLE;
             Pair p;
-            if (PatternCheck::check(cnt, emptyLast, p)) return PAIR;
+            if (PatternCheck::check(cnt, emptyLast, p,true)) return PAIR;
             Triple t;
-            if (PatternCheck::check(cnt, emptyLast, t)) return TRIPLE;
+            if (PatternCheck::check(cnt, emptyLast, t,true)) return TRIPLE;
             Straight st;
-            if (PatternCheck::check(cnt, emptyLast, st)) return STRAIGHT;
+            if (PatternCheck::check(cnt, emptyLast, st,true)) return STRAIGHT;
             PairSequence ps;
-            if (PatternCheck::check(cnt, emptyLast, ps)) return PAIR_SEQUENCE;
+            if (PatternCheck::check(cnt, emptyLast, ps,true)) return PAIR_SEQUENCE;
             TripleSequence ts;
-            if (PatternCheck::check(cnt, emptyLast, ts)) return TRIPLE_SEQUENCE;
+            if (PatternCheck::check(cnt, emptyLast, ts,true)) return TRIPLE_SEQUENCE;
             TripleWithOne two1;
-            if (PatternCheck::check(cnt, emptyLast, two1)) return THREE_WITH_ONE;
+            if (PatternCheck::check(cnt, emptyLast, two1,true)) return THREE_WITH_ONE;
             TripleWithTwo two2;
-            if (PatternCheck::check(cnt, emptyLast, two2)) return THREE_WITH_TWO;
+            if (PatternCheck::check(cnt, emptyLast, two2,true)) return THREE_WITH_TWO;
             QuadWithSingles qws;
-            if (PatternCheck::check(cnt, emptyLast, qws)) return QUAD_WITH_SINGLES;
+            if (PatternCheck::check(cnt, emptyLast, qws,true)) return QUAD_WITH_SINGLES;
             QuadWithPairs qwp;
-            if (PatternCheck::check(cnt, emptyLast, qwp)) return QUAD_WITH_PAIRS;
+            if (PatternCheck::check(cnt, emptyLast, qwp,true)) return QUAD_WITH_PAIRS;
             PlanWithSingles pws;
-            if (PatternCheck::check(cnt, emptyLast, pws)) return TRIPLE_SEQUENCE_WITH_ONE;
+            if (PatternCheck::check(cnt, emptyLast, pws,true)) return TRIPLE_SEQUENCE_WITH_ONE;
             PlanWithPairs pwp;
-            if (PatternCheck::check(cnt, emptyLast, pwp)) return TRIPLE_SEQUENCE_WITH_TWO_PAIRS;
+            if (PatternCheck::check(cnt, emptyLast, pwp,true)) return TRIPLE_SEQUENCE_WITH_TWO_PAIRS;
             return -1;
     }
     static vector<int> findCardValue(const vector<int>& handcards, const vector<int>& values) {
