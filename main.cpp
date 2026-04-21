@@ -923,24 +923,14 @@ namespace PatternCheck{
                     vector<int> planeBody;
                     for (int i = 0; i < len; ++i)
                         for (int k = 0; k < 3; ++k) planeBody.push_back(start + i);
-                    // 使用递归生成所有组合
-                    function<void(int, int, vector<int>&)> dfs = [&](int idx, int cntChosen, vector<int>& chosen) {
-                        if (cntChosen == len) {
-                            vector<int> action = planeBody;
-                            action.insert(action.end(), chosen.begin(), chosen.end());
-                            result.push_back(action);
-                            return;
-                        }
-                        if (idx >= (int)singles.size()) return;
-                        // 选当前单牌
-                        chosen.push_back(singles[idx]);
-                        dfs(idx + 1, cntChosen + 1, chosen);
-                        chosen.pop_back();
-                        // 不选
-                        dfs(idx + 1, cntChosen, chosen);
-                    };
-                    vector<int> chosen;
-                    dfs(0, 0, chosen);
+                    if (singles.size() >= len) {
+                        std::sort(singles.begin(), singles.end());
+                        singles.resize(len);
+                        vector<int> action = planeBody;
+                        action.insert(action.end(), singles.begin(), singles.end());
+                        result.push_back(action);
+                        }                
+                       
                 }
             }
             return result;
@@ -974,26 +964,17 @@ namespace PatternCheck{
                     vector<int> planeBody;
                     for (int i = 0; i < len; ++i)
                         for (int k = 0; k < 3; ++k) planeBody.push_back(start + i);
-                    function<void(int, int, vector<int>&)> dfs = [&](int idx, int cntChosen, vector<int>& chosen) {
-                        if (cntChosen == len) {
-                            vector<int> action = planeBody;
-                            for (int v : chosen) {
-                                action.push_back(v);
-                                action.push_back(v);
-                            }
-                            result.push_back(action);
-                            return;
+                     if (pairs.size() >= len) {
+                        std::sort(pairs.begin(), pairs.end());
+                        pairs.resize(len);   // 只保留最小的 len 个对子
+
+                        vector<int> action = planeBody;
+                        for (int v : pairs) {
+                            action.push_back(v);
+                            action.push_back(v);
                         }
-                        if (idx >= (int)pairs.size()) return;
-                        // 选当前对子
-                        chosen.push_back(pairs[idx]);
-                        dfs(idx + 1, cntChosen + 1, chosen);
-                        chosen.pop_back();
-                        // 不选
-                        dfs(idx + 1, cntChosen, chosen);
-                    };
-                    vector<int> chosen;
-                    dfs(0, 0, chosen);
+                        result.push_back(action);
+                    }
                 }
             }
             return result;
@@ -1010,14 +991,12 @@ namespace PatternCheck{
                     if (s != quad && cnt[s] >= 1) singles.push_back(s);
                 }
                 if (singles.size() < 2) continue;
-                // 枚举所有两单组合
-                for (size_t i = 0; i < singles.size(); ++i) {
-                    for (size_t j = i + 1; j < singles.size(); ++j) {
-                        vector<int> action(4, quad);
-                        action.push_back(singles[i]);
-                        action.push_back(singles[j]);
-                        result.push_back(action);
-                    }
+                 if (singles.size() >= 2) {
+                    std::sort(singles.begin(), singles.end());
+                    vector<int> action(4, quad);
+                    action.push_back(singles[0]);
+                    action.push_back(singles[1]);
+                    result.push_back(action);
                 }
             }
             return result;
@@ -1034,15 +1013,12 @@ namespace PatternCheck{
                     if (p != quad && cnt[p] >= 2) pairs.push_back(p);
                 }
                 if (pairs.size() < 2) continue;
-                for (size_t i = 0; i < pairs.size(); ++i) {
-                    for (size_t j = i + 1; j < pairs.size(); ++j) {
-                        vector<int> action(4, quad);
-                        action.push_back(pairs[i]);
-                        action.push_back(pairs[i]);
-                        action.push_back(pairs[j]);
-                        action.push_back(pairs[j]);
-                        result.push_back(action);
-                    }
+                 if (pairs.size() >= 2) {
+                    std::sort(pairs.begin(), pairs.end());
+                    vector<int> action(4, quad);
+                    action.push_back(pairs[0]); action.push_back(pairs[0]);
+                    action.push_back(pairs[1]); action.push_back(pairs[1]);
+                    result.push_back(action);
                 }
             }
             return result;
@@ -1324,48 +1300,88 @@ class GameState {
         }
     }
     // 状态复制构造函数，用于递归搜索
-    GameState(const GameState& other)
-        : history(other.history), publiccard(other.publiccard), currentPlayer(other.currentPlayer),
-          myRole(other.myRole), landlordRole(other.landlordRole),
-          currentPassCount(other.currentPassCount), lastActionPlayer(other.lastActionPlayer),
-          isGameOver(other.isGameOver), winner(other.winner),Actions_cached(false) {
-        for (int i = 0; i < 3; ++i) {
-            myhand[i] = other.myhand[i];
-        }
-    }
-     GameState applyAction(const vector<int>& action) {//状态转移函数，根据玩家的出牌动作，生成新的游戏状态
-        GameState newState=*this;
-         
-        if(action.empty()){// 1. 从玩家手牌中移除出牌
-            newState.currentPassCount++;// 过牌，增加连续过牌计数
-            if(newState.currentPassCount >= 2) {
-                newState.currentPlayer=newState.lastActionPlayer;// 如果连续两人过牌，重置跟牌压力
-                newState.currentPassCount=0;
-            }else{
-                newState.currentPlayer=(newState.currentPlayer+1)%3;
-            }
-        }else{
-            //出牌从当前的手牌中移除出牌
-            for(int card : action){
-                auto it = find(newState.myhand[newState.currentPlayer].begin(), newState.myhand[newState.currentPlayer].end(), card);
-                if(it != newState.myhand[newState.currentPlayer].end()) {
-                    newState.myhand[newState.currentPlayer].erase(it);
+        GameState(const GameState& other)
+                : history(other.history), publiccard(other.publiccard), currentPlayer(other.currentPlayer),
+                myRole(other.myRole), landlordRole(other.landlordRole),
+                currentPassCount(other.currentPassCount), lastActionPlayer(other.lastActionPlayer),
+                isGameOver(other.isGameOver), winner(other.winner),Actions_cached(false) {
+                for (int i = 0; i < 3; ++i) {
+                    myhand[i] = other.myhand[i];
                 }
             }
-            //更新历史
-            newState.history.push_back(action);
-            //重置连续过牌计数，记录出牌者
-            newState.currentPassCount=0;
-            newState.lastActionPlayer=newState.currentPlayer;
-            //下一家出牌
-            newState.currentPlayer=(newState.currentPlayer+1)%3;
-            if(newState.myhand[newState.lastActionPlayer].empty()) {
-                newState.isGameOver=true;
-                newState.winner=newState.lastActionPlayer;
+        GameState(GameState&& other) noexcept
+            : myhand{ std::move(other.myhand[0]), std::move(other.myhand[1]), std::move(other.myhand[2]) }
+            , publiccard(std::move(other.publiccard))
+            , history(std::move(other.history))
+            , myRole(other.myRole)
+            , landlordRole(other.landlordRole)
+            , currentPassCount(other.currentPassCount)
+            , currentPlayer(other.currentPlayer)
+            , lastActionPlayer(other.lastActionPlayer)
+            , isGameOver(other.isGameOver)
+            , winner(other.winner)
+            , Actions_cached(false)      // 移动后缓存失效，安全
+            , Cache_Actions()            // 清空缓存向量
+        {
+            
+        }
+        GameState& operator=(GameState&& other) noexcept {
+            if (this != &other) {
+                // 释放当前资源（vector 会自动释放）
+                myhand[0] = std::move(other.myhand[0]);
+                myhand[1] = std::move(other.myhand[1]);
+                myhand[2] = std::move(other.myhand[2]);
+                publiccard = std::move(other.publiccard);
+                history = std::move(other.history);
+                myRole = other.myRole;
+                landlordRole = other.landlordRole;
+                currentPassCount = other.currentPassCount;
+                currentPlayer = other.currentPlayer;
+                lastActionPlayer = other.lastActionPlayer;
+                isGameOver = other.isGameOver;
+                winner = other.winner;
+                Actions_cached = false;
+                Cache_Actions.clear();
+            }
+            return *this;
+        }
+    void applyActionInPlace(const vector<int>& action) {//状态转移函数，根据玩家的出牌动作，生成新的游戏状态
+            if (action.empty()) {// 1. 从玩家手牌中移除出牌
+                this->currentPassCount++;// 过牌，增加连续过牌计数
+                if (this->currentPassCount >= 2) {
+                    this->currentPlayer = this->lastActionPlayer;// 如果连续两人过牌，重置跟牌压力
+                    this->currentPassCount = 0;
+                }
+                else {
+                    this->currentPlayer = (this->currentPlayer + 1) % 3;
+                }
+            }
+            else {
+                //出牌从当前的手牌中移除出牌
+                for (int card : action) {
+                    auto it = find(this->myhand[this->currentPlayer].begin(), this->myhand[this->currentPlayer].end(), card);
+                    if (it != this->myhand[this->currentPlayer].end()) {
+                        this->myhand[this->currentPlayer].erase(it);
+                    }
+                }
+                //更新历史
+                this->history.push_back(action);
+                //重置连续过牌计数，记录出牌者
+                this->currentPassCount = 0;
+                this->lastActionPlayer = this->currentPlayer;
+                //下一家出牌
+                this->currentPlayer = (this->currentPlayer + 1) % 3;
+                if (this->myhand[this->lastActionPlayer].empty()) {
+                    this->isGameOver = true;
+                    this->winner = this->lastActionPlayer;
+                }
             }
         }
-        return newState;
-    }
+	GameState applyActionCopy(const vector<int>& action) const {
+            GameState newState=*this;
+            newState.applyActionInPlace(action);
+            return newState;
+        }
     vector<int> getCurrentPlayerHand() const {return myhand[currentPlayer];}
     vector<int> getPublicCard() const {return publiccard;}
     vector<int> getLastMove() const{if(!history.empty()) return history.back();
@@ -1629,7 +1645,7 @@ public:
         //随机选择一个未尝试的动作进行扩展
         int idx = rand() % untried.size();
         vector<int> action = untried[idx];
-        GameState newState = state->applyAction(action);
+        GameState newState = state->applyActionCopy(action);
         MCTSNode* child = new MCTSNode(newState, this, action);
         children.push_back(child);
 
@@ -1649,7 +1665,7 @@ public:
                 action =getBestActionByPriority(simState.getCurrentPlayerHand(), simState.getLastMove());
             }
             if(action.empty())action ={};
-            simState = simState.applyAction(action);
+            simState.applyActionInPlace(action);  
             //  if (dist(rng) < EPSILON) {
             //     // 以一定概率选择一个随机合法动作，增加探索
             //     vector<vector<int>> legalActions = simState.getAllActions();
