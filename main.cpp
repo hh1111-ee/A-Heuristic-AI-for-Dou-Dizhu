@@ -4,16 +4,16 @@
 #include<vector>
 #include<algorithm>
 #include<unordered_map>
-#include <chrono>
-#include <random>
-#include <cmath>
+#include<chrono>
+#include<random>
+#include<cmath>
 #include<variant>
 #include<array>
 #include<functional>
 #include<cstring>
 #include<map>
 #include<numeric>
-// #include"jsoncpp/json.h"
+#include"jsoncpp/json.h"
 using namespace std;
 /*斗地主bot --botzone作业
 叫分及确定地主
@@ -147,8 +147,8 @@ using namespace std;
 叫分request
 
 {
-	"own": [0, 1, 2, 3, 4] // 自己最初拥有哪些牌
-	"bid": [0, 2] // 前面的玩家的叫分决策
+    "own": [0, 1, 2, 3, 4] // 自己最初拥有哪些牌
+    "bid": [0, 2] // 前面的玩家的叫分决策
 }
 对于bid数组：
 
@@ -160,46 +160,46 @@ using namespace std;
 第一个出牌request
 
 {
-	"history": [[0, 1, 2] 上上家 , [] 上家 ],  总是两项，每一项都是数组，分别表示上上家和上家出的牌，空数组表示跳过回合或者还没轮到他。
-	"publiccard": [29, 8, 14], 地主被公开的三张牌
-	"own": [0, 1, 2, 3, 4] // 自己最初拥有哪些牌
-	"landlord": 2, // 地主的玩家位置
-	"pos": 0, // Bot的玩家位置
-	"finalbid": 1 // 叫分阶段的底分
+    "history": [[0, 1, 2] 上上家 , [] 上家 ],  总是两项，每一项都是数组，分别表示上上家和上家出的牌，空数组表示跳过回合或者还没轮到他。
+    "publiccard": [29, 8, 14], 地主被公开的三张牌
+    "own": [0, 1, 2, 3, 4] // 自己最初拥有哪些牌
+    "landlord": 2, // 地主的玩家位置
+    "pos": 0, // Bot的玩家位置
+    "finalbid": 1 // 叫分阶段的底分
 }
 此后的出牌request
 
 {
-	"history": [[0, 1, 2] 上上家 , [] 上家 ], // 总是两项，每一项都是数组，分别表示上上家和上家出的牌，空数组表示跳过回合。
+    "history": [[0, 1, 2] 上上家 , [] 上家 ], // 总是两项，每一项都是数组，分别表示上上家和上家出的牌，空数组表示跳过回合。
 }
 收到出牌request时，Bot所需要输出的response是一个JSON数组，表示自己要出的牌。空数组表示跳过回合。
- 
+
     作者：舒义鹏，时间：2026-4-7
 */
 //==========牌型结构体==========//
-struct Rocket{};
-struct Bomb{int value;};
-struct Single{int value;};
-struct Pair{int value;};
-struct Triple{int value;};
-struct Straight{int start; int len;};
-struct PairSequence{int start; int len;};
-struct TripleSequence{int start; int len;};
-struct TripleWithOne{int triple; int single;};
-struct TripleWithTwo{int triple; int pair;};
-struct QuadWithSingles{int quad;int single1; int single2;};
-struct QuadWithPairs{int quad; int pair1; int pair2;};
-struct PlanWithSingles{int start; int len; vector<int> singles;};
-struct PlanWithPairs{int start; int len; vector<int> pairs;};
+struct Rocket {};
+struct Bomb { int value; };
+struct Single { int value; };
+struct Pair { int value; };
+struct Triple { int value; };
+struct Straight { int start; int len; };
+struct PairSequence { int start; int len; };
+struct TripleSequence { int start; int len; };
+struct TripleWithOne { int triple; int single; };
+struct TripleWithTwo { int triple; int pair; };
+struct QuadWithSingles { int quad; int single1; int single2; };
+struct QuadWithPairs { int quad; int pair1; int pair2; };
+struct PlanWithSingles { int start; int len; vector<int> singles; };
+struct PlanWithPairs { int start; int len; vector<int> pairs; };
 using CardPattern = variant<
-Rocket, Bomb, Single, Pair
-, Triple, Straight, PairSequence,
- TripleSequence, TripleWithOne
-, TripleWithTwo, QuadWithSingles, 
-QuadWithPairs, PlanWithSingles
-, PlanWithPairs>;
+    Rocket, Bomb, Single, Pair
+    , Triple, Straight, PairSequence,
+    TripleSequence, TripleWithOne
+    , TripleWithTwo, QuadWithSingles,
+    QuadWithPairs, PlanWithSingles
+    , PlanWithPairs>;
 //====牌型检测命名空间===//
-namespace PatternCheck{
+namespace PatternCheck {
     bool check(const int cnt[18], const vector<int>& /*lastMovePatterns*/, Rocket&, bool exact = false) {
         if (exact) {
             int total = 0;
@@ -211,949 +211,1082 @@ namespace PatternCheck{
         }
     }
 
-        // Bomb
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Bomb& bomb, bool exact = false) {
-            if (exact) {
-                int total = 0, quadVal = -1;
-                for (int v = 3; v <= 17; ++v) {
-                    total += cnt[v];
-                    if (cnt[v] == 4) quadVal = v;
-                    else if (cnt[v] != 0) return false;
-                }
-                if (total == 4 && quadVal != -1) {
-                    bomb.value = quadVal;
-                    return true;
-                }
-                return false;
+    // Bomb
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, Bomb& bomb, bool exact = false) {
+        if (exact) {
+            int total = 0, quadVal = -1;
+            for (int v = 3; v <= 17; ++v) {
+                total += cnt[v];
+                if (cnt[v] == 4) quadVal = v;
+                else if (cnt[v] != 0) return false;
             }
-            else {
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] >= 4) {
-                        bomb.value = v;
-                        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4 && v <= lastMovePatterns[0])
-                            continue;
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-
-        // Single
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Single& single, bool exact = false) {
-            if (exact) {
-                int total = 0, val = -1;
-                for (int v = 3; v <= 17; ++v) {
-                    total += cnt[v];
-                    if (cnt[v] == 1) val = v;
-                    else if (cnt[v] != 0) return false;
-                }
-                if (total == 1 && val != -1) {
-                    single.value = val;
-                    return true;
-                }
-                return false;
-            }
-            else {
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] >= 1) {
-                        if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
-                        single.value = v;
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-
-        // Pair
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Pair& pair, bool exact = false) {
-            if (exact) {
-                int total = 0, val = -1;
-                for (int v = 3; v <= 17; ++v) {
-                    total += cnt[v];
-                    if (cnt[v] == 2) val = v;
-                    else if (cnt[v] != 0) return false;
-                }
-                if (total == 2 && val != -1) {
-                    pair.value = val;
-                    return true;
-                }
-                return false;
-            }
-            else {
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] >= 2) {
-                        if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
-                        pair.value = v;
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-
-        // Triple
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Triple& triple, bool exact = false) {
-            if (exact) {
-                int total = 0, val = -1;
-                for (int v = 3; v <= 17; ++v) {
-                    total += cnt[v];
-                    if (cnt[v] == 3) val = v;
-                    else if (cnt[v] != 0) return false;
-                }
-                if (total == 3 && val != -1) {
-                    triple.value = val;
-                    return true;
-                }
-                return false;
-            }
-            else {
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] >= 3) {
-                        if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
-                        triple.value = v;
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-
-        // Straight
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, Straight& straight, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total < 5 || total > 12) return false;
-                int start = -1, len = 0;
-                for (int i = 3; i <= 14; ++i) {
-                    if (cnt[i] == 1) {
-                        if (start == -1) start = i;
-                        len++;
-                        if (i == 14 || cnt[i + 1] != 1) break;
-                    }
-                    else if (cnt[i] != 0) return false;
-                }
-                if (len == total && len >= 5) {
-                    straight.start = start;
-                    straight.len = len;
-                    return true;
-                }
-                return false;
-            }
-            else {
-                int maxlen = 0, beststart = -1;
-                for (int start = 3; start <= 14; ++start) {
-                    int len = 0;
-                    while (start + len <= 14 && cnt[start + len] >= 1) len++;
-                    if (len >= 5 && len > maxlen) {
-                        maxlen = len;
-                        beststart = start;
-                    }
-                    start += len;
-                }
-                if (beststart == -1) return false;
-                if (!lastMovePatterns.empty()) {
-                    int lastlen = lastMovePatterns.size();
-                    int laststart = lastMovePatterns[0];
-                    if (maxlen != lastlen || beststart <= laststart) return false;
-                }
-                straight.start = beststart;
-                straight.len = maxlen;
+            if (total == 4 && quadVal != -1) {
+                bomb.value = quadVal;
                 return true;
             }
+            return false;
         }
-
-        // PairSequence
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, PairSequence& ps, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                int len = total / 2;
-                if (total % 2 != 0 || total < 6 || len > 10) return false;
-                vector<int> vals;
-                for (int i = 3; i <= 17; ++i) {
-                    if (cnt[i] == 2) vals.push_back(i);
-                    else if (cnt[i] != 0) return false;
-                }
-                if ((int)vals.size() != len) return false;
-                bool cont = true;
-                for (size_t i = 1; i < vals.size(); ++i) {
-                    if (vals[i] != vals[i - 1] + 1) { cont = false; break; }
-                }
-                if (cont && len >= 3) {
-                    ps.start = vals[0];
-                    ps.len = len;
+        else {
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] >= 4) {
+                    bomb.value = v;
+                    if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4 && v <= lastMovePatterns[0])
+                        continue;
                     return true;
                 }
-                return false;
             }
-            else {
-                int maxlen = 0, beststart = -1;
-                for (int start = 3; start <= 14; ++start) {
-                    int len = 0;
-                    while (start + len <= 14 && cnt[start + len] >= 2) len++;
-                    if (len >= 3 && len > maxlen) {
-                        maxlen = len;
-                        beststart = start;
-                    }
-                    start += len;
-                }
-                if (beststart == -1) return false;
-                if (!lastMovePatterns.empty()) {
-                    int lastlen = lastMovePatterns.size() / 2;
-                    int laststart = lastMovePatterns[0];
-                    if (maxlen != lastlen || beststart <= laststart) return false;
-                }
-                ps.start = beststart;
-                ps.len = maxlen;
+            return false;
+        }
+    }
+
+    // Single
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, Single& single, bool exact = false) {
+        if (exact) {
+            int total = 0, val = -1;
+            for (int v = 3; v <= 17; ++v) {
+                total += cnt[v];
+                if (cnt[v] == 1) val = v;
+                else if (cnt[v] != 0) return false;
+            }
+            if (total == 1 && val != -1) {
+                single.value = val;
                 return true;
             }
+            return false;
         }
-
-        // TripleSequence (飞机无翼)
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleSequence& ts, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total % 3 != 0 || total < 6 || total > 12) return false;
-                int len = total / 3;
-                vector<int> vals;
-                for (int i = 3; i <= 17; ++i) {
-                    if (cnt[i] == 3) vals.push_back(i);
-                    else if (cnt[i] != 0) return false;
-                }
-                if ((int)vals.size() != len) return false;
-                bool cont = true;
-                for (size_t i = 1; i < vals.size(); ++i) {
-                    if (vals[i] != vals[i - 1] + 1) { cont = false; break; }
-                }
-                if (cont && len >= 2) {
-                    ts.start = vals[0];
-                    ts.len = len;
+        else {
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] >= 1) {
+                    if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
+                    single.value = v;
                     return true;
                 }
-                return false;
             }
-            else {
-                int maxlen = 0, beststart = -1;
-                for (int start = 3; start <= 14; ++start) {
-                    int len = 0;
-                    while (start + len <= 14 && cnt[start + len] >= 3) len++;
-                    if (len >= 2 && len > maxlen) {
-                        maxlen = len;
-                        beststart = start;
-                    }
-                    start += len;
-                }
-                if (beststart == -1) return false;
-                if (!lastMovePatterns.empty()) {
-                    int lastlen = lastMovePatterns.size() / 3;
-                    int laststart = lastMovePatterns[0];
-                    if (maxlen != lastlen || beststart <= laststart) return false;
-                }
-                ts.start = beststart;
-                ts.len = maxlen;
+            return false;
+        }
+    }
+
+    // Pair
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, Pair& pair, bool exact = false) {
+        if (exact) {
+            int total = 0, val = -1;
+            for (int v = 3; v <= 17; ++v) {
+                total += cnt[v];
+                if (cnt[v] == 2) val = v;
+                else if (cnt[v] != 0) return false;
+            }
+            if (total == 2 && val != -1) {
+                pair.value = val;
                 return true;
             }
+            return false;
         }
-
-        // TripleWithOne
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleWithOne& tws, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total != 4) return false;
-                int tripleVal = -1, singleVal = -1;
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] == 3) tripleVal = v;
-                    else if (cnt[v] == 1) singleVal = v;
-                    else if (cnt[v] != 0) return false;
-                }
-                if (tripleVal != -1 && singleVal != -1) {
-                    tws.triple = tripleVal;
-                    tws.single = singleVal;
+        else {
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] >= 2) {
+                    if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
+                    pair.value = v;
                     return true;
                 }
-                return false;
             }
-            else {
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] >= 3) {
-                        if (!lastMovePatterns.empty()) {
-                            int lastTriple = lastMovePatterns[0];
-                            if (v <= lastTriple) continue;
-                        }
-                        for (int s = 3; s <= 17; ++s) {
-                            if (s != v && cnt[s] >= 1) {
-                                tws.triple = v;
-                                tws.single = s;
-                                return true;
-                            }
-                        }
+            return false;
+        }
+    }
+
+    // Triple
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, Triple& triple, bool exact = false) {
+        if (exact) {
+            int total = 0, val = -1;
+            for (int v = 3; v <= 17; ++v) {
+                total += cnt[v];
+                if (cnt[v] == 3) val = v;
+                else if (cnt[v] != 0) return false;
+            }
+            if (total == 3 && val != -1) {
+                triple.value = val;
+                return true;
+            }
+            return false;
+        }
+        else {
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] >= 3) {
+                    if (!lastMovePatterns.empty() && lastMovePatterns[0] >= v) continue;
+                    triple.value = v;
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    // Straight
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, Straight& straight, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            if (total < 5 || total > 12) return false;
+            int start = -1, len = 0;
+            for (int i = 3; i <= 14; ++i) {
+                if (cnt[i] == 1) {
+                    if (start == -1) start = i;
+                    len++;
+                    if (i == 14 || cnt[i + 1] != 1) break;
+                }
+                else if (cnt[i] != 0) return false;
+            }
+            if (len == total && len >= 5) {
+                straight.start = start;
+                straight.len = len;
+                return true;
+            }
+            return false;
+        }
+        else {
+            int maxlen = 0, beststart = -1;
+            for (int start = 3; start <= 14; ++start) {
+                int len = 0;
+                while (start + len <= 14 && cnt[start + len] >= 1) len++;
+                if (len >= 5 && len > maxlen) {
+                    maxlen = len;
+                    beststart = start;
+                }
+                start += len;
+            }
+            if (beststart == -1) return false;
+            if (!lastMovePatterns.empty()) {
+                int lastlen = lastMovePatterns.size();
+                int laststart = lastMovePatterns[0];
+                if (maxlen != lastlen || beststart <= laststart) return false;
+            }
+            straight.start = beststart;
+            straight.len = maxlen;
+            return true;
+        }
+    }
+
+    // PairSequence
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, PairSequence& ps, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            int len = total / 2;
+            if (total % 2 != 0 || total < 6 || len > 10) return false;
+            vector<int> vals;
+            for (int i = 3; i <= 17; ++i) {
+                if (cnt[i] == 2) vals.push_back(i);
+                else if (cnt[i] != 0) return false;
+            }
+            if ((int)vals.size() != len) return false;
+            bool cont = true;
+            for (size_t i = 1; i < vals.size(); ++i) {
+                if (vals[i] != vals[i - 1] + 1) { cont = false; break; }
+            }
+            if (cont && len >= 3) {
+                ps.start = vals[0];
+                ps.len = len;
+                return true;
+            }
+            return false;
+        }
+        else {
+            int maxlen = 0, beststart = -1;
+            for (int start = 3; start <= 14; ++start) {
+                int len = 0;
+                while (start + len <= 14 && cnt[start + len] >= 2) len++;
+                if (len >= 3 && len > maxlen) {
+                    maxlen = len;
+                    beststart = start;
+                }
+                start += len;
+            }
+            if (beststart == -1) return false;
+            if (!lastMovePatterns.empty()) {
+                int lastlen = lastMovePatterns.size() / 2;
+                int laststart = lastMovePatterns[0];
+                if (maxlen != lastlen || beststart <= laststart) return false;
+            }
+            ps.start = beststart;
+            ps.len = maxlen;
+            return true;
+        }
+    }
+
+    // TripleSequence (飞机无翼)
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleSequence& ts, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            if (total % 3 != 0 || total < 6 || total > 12) return false;
+            int len = total / 3;
+            vector<int> vals;
+            for (int i = 3; i <= 17; ++i) {
+                if (cnt[i] == 3) vals.push_back(i);
+                else if (cnt[i] != 0) return false;
+            }
+            if ((int)vals.size() != len) return false;
+            bool cont = true;
+            for (size_t i = 1; i < vals.size(); ++i) {
+                if (vals[i] != vals[i - 1] + 1) { cont = false; break; }
+            }
+            if (cont && len >= 2) {
+                ts.start = vals[0];
+                ts.len = len;
+                return true;
+            }
+            return false;
+        }
+        else {
+            int maxlen = 0, beststart = -1;
+            for (int start = 3; start <= 14; ++start) {
+                int len = 0;
+                while (start + len <= 14 && cnt[start + len] >= 3) len++;
+                if (len >= 2 && len > maxlen) {
+                    maxlen = len;
+                    beststart = start;
+                }
+                start += len;
+            }
+            if (beststart == -1) return false;
+            if (!lastMovePatterns.empty()) {
+                int lastlen = lastMovePatterns.size() / 3;
+                int laststart = lastMovePatterns[0];
+                if (maxlen != lastlen || beststart <= laststart) return false;
+            }
+            ts.start = beststart;
+            ts.len = maxlen;
+            return true;
+        }
+    }
+
+    // TripleWithOne
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleWithOne& tws, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            if (total != 4) return false;
+            int tripleVal = -1, singleVal = -1;
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] == 3) tripleVal = v;
+                else if (cnt[v] == 1) singleVal = v;
+                else if (cnt[v] != 0) return false;
+            }
+            if (tripleVal != -1 && singleVal != -1) {
+                tws.triple = tripleVal;
+                tws.single = singleVal;
+                return true;
+            }
+            return false;
+        }
+        else {
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] >= 3) {
+                    if (!lastMovePatterns.empty()) {
+                        int lastTriple = lastMovePatterns[0];
+                        if (v <= lastTriple) continue;
                     }
-                }
-                return false;
-            }
-        }
-
-        // TripleWithTwo
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleWithTwo& tws, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total != 5) return false;
-                int tripleVal = -1, pairVal = -1;
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] == 3) tripleVal = v;
-                    else if (cnt[v] == 2) pairVal = v;
-                    else if (cnt[v] != 0) return false;
-                }
-                if (tripleVal != -1 && pairVal != -1) {
-                    tws.triple = tripleVal;
-                    tws.pair = pairVal;
-                    return true;
-                }
-                return false;
-            }
-            else {
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] >= 3) {
-                        if (!lastMovePatterns.empty()) {
-                            int lastTriple = lastMovePatterns[0];
-                            if (v <= lastTriple) continue;
-                        }
-                        for (int s = 3; s <= 17; ++s) {
-                            if (s != v && cnt[s] >= 2) {
-                                tws.triple = v;
-                                tws.pair = s;
-                                return true;
-                            }
-                        }
-                    }
-                }
-                return false;
-            }
-        }
-
-        // QuadWithSingles
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, QuadWithSingles& qws, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total != 6) return false;
-                int quadVal = -1;
-                vector<int> singles;
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] == 4) quadVal = v;
-                    else if (cnt[v] == 1) singles.push_back(v);
-                    else if (cnt[v] != 0) return false;
-                }
-                if (quadVal != -1 && singles.size() == 2) {
-                    qws.quad = quadVal;
-                    qws.single1 = singles[0];
-                    qws.single2 = singles[1];
-                    return true;
-                }
-                return false;
-            }
-            else {
-                for (int q = 3; q <= 17; ++q) {
-                    if (cnt[q] >= 4) {
-                        if (!lastMovePatterns.empty()) {
-                            int lastQuad = lastMovePatterns[0];
-                            if (q <= lastQuad) continue;
-                        }
-                        vector<int> singles;
-                        for (int s = 3; s <= 17; ++s) {
-                            if (s != q && cnt[s] >= 1) singles.push_back(s);
-                        }
-                        if (singles.size() >= 2) {
-                            qws.quad = q;
-                            qws.single1 = singles[0];
-                            qws.single2 = singles[1];
+                    for (int s = 3; s <= 17; ++s) {
+                        if (s != v && cnt[s] >= 1) {
+                            tws.triple = v;
+                            tws.single = s;
                             return true;
                         }
                     }
                 }
-                return false;
             }
+            return false;
         }
+    }
 
-        // QuadWithPairs
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, QuadWithPairs& qwp, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total != 8) return false;
-                int quadVal = -1;
-                vector<int> pairs;
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] == 4) quadVal = v;
-                    else if (cnt[v] == 2) pairs.push_back(v);
-                    else if (cnt[v] != 0) return false;
-                }
-                if (quadVal != -1 && pairs.size() == 2) {
-                    qwp.quad = quadVal;
-                    qwp.pair1 = pairs[0];
-                    qwp.pair2 = pairs[1];
-                    return true;
-                }
-                return false;
+    // TripleWithTwo
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, TripleWithTwo& tws, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            if (total != 5) return false;
+            int tripleVal = -1, pairVal = -1;
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] == 3) tripleVal = v;
+                else if (cnt[v] == 2) pairVal = v;
+                else if (cnt[v] != 0) return false;
             }
-            else {
-                for (int q = 3; q <= 17; ++q) {
-                    if (cnt[q] >= 4) {
-                        if (!lastMovePatterns.empty()) {
-                            int lastQuad = lastMovePatterns[0];
-                            if (q <= lastQuad) continue;
-                        }
-                        vector<int> pairs;
-                        for (int s = 3; s <= 17; ++s) {
-                            if (s != q && cnt[s] >= 2) pairs.push_back(s);
-                        }
-                        if (pairs.size() >= 2) {
-                            qwp.quad = q;
-                            qwp.pair1 = pairs[0];
-                            qwp.pair2 = pairs[1];
+            if (tripleVal != -1 && pairVal != -1) {
+                tws.triple = tripleVal;
+                tws.pair = pairVal;
+                return true;
+            }
+            return false;
+        }
+        else {
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] >= 3) {
+                    if (!lastMovePatterns.empty()) {
+                        int lastTriple = lastMovePatterns[0];
+                        if (v <= lastTriple) continue;
+                    }
+                    for (int s = 3; s <= 17; ++s) {
+                        if (s != v && cnt[s] >= 2) {
+                            tws.triple = v;
+                            tws.pair = s;
                             return true;
                         }
                     }
                 }
-                return false;
             }
+            return false;
         }
+    }
 
-        // PlanWithSingles (飞机带单牌)
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, PlanWithSingles& pws, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total % 4 != 0 || total < 8) return false;
-                int k = total / 4;
-                vector<int> triples, singles;
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] == 3) triples.push_back(v);
-                    else if (cnt[v] == 1) singles.push_back(v);
-                    else if (cnt[v] != 0) return false;
-                }
-                if ((int)triples.size() != k || (int)singles.size() != k) return false;
-                // 检查三张部分是否连续
-                bool cont = true;
-                for (int i = 1; i < k; ++i) {
-                    if (triples[i] != triples[i - 1] + 1) { cont = false; break; }
-                }
-                if (!cont) return false;
-                // 单牌不能与三张点数重复（已经通过 cnt 检查，因为三张部分占3张，单牌占1张，不会重复）
-                pws.start = triples[0];
-                pws.len = k;
-                pws.singles = singles;
-                sort(pws.singles.begin(), pws.singles.end()); // 确保有序
+    // QuadWithSingles
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, QuadWithSingles& qws, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            if (total != 6) return false;
+            int quadVal = -1;
+            vector<int> singles;
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] == 4) quadVal = v;
+                else if (cnt[v] == 1) singles.push_back(v);
+                else if (cnt[v] != 0) return false;
+            }
+            if (quadVal != -1 && singles.size() == 2) {
+                qws.quad = quadVal;
+                qws.single1 = singles[0];
+                qws.single2 = singles[1];
                 return true;
             }
-            else {
-                int maxlen = 0, beststart = -1;
-                for (int start = 3; start <= 14; ++start) {
-                    int len = 0;
-                    while (start + len <= 14 && cnt[start + len] >= 3) len++;
-                    if (len >= 2 && len > maxlen) {
-                        maxlen = len;
-                        beststart = start;
+            return false;
+        }
+        else {
+            for (int q = 3; q <= 17; ++q) {
+                if (cnt[q] >= 4) {
+                    if (!lastMovePatterns.empty()) {
+                        int lastQuad = lastMovePatterns[0];
+                        if (q <= lastQuad) continue;
                     }
-                    start += len;
-                }
-                if (beststart == -1) return false;
-                if (!lastMovePatterns.empty()) {
-                    int lastlen = lastMovePatterns.size() / 4;
-                    int laststart = lastMovePatterns[0];
-                    if (maxlen != lastlen || beststart <= laststart) return false;
-                }
-                int tmpCnt[18];
-                memcpy(tmpCnt, cnt, sizeof(tmpCnt));
-                for (int j = 0; j < maxlen; ++j) tmpCnt[beststart + j] -= 3;
-                vector<int> singles;
-                for (int v = 3; v <= 17; ++v) {
-                    for (int k = 0; k < tmpCnt[v]; ++k) singles.push_back(v);
-                }
-                if ((int)singles.size() < maxlen) return false;
-                sort(singles.begin(), singles.end());
-                pws.start = beststart;
-                pws.len = maxlen;
-                pws.singles.assign(singles.begin(), singles.begin() + maxlen);
-                return true;
-            }
-        }
-
-        // PlanWithPairs (飞机带对子)
-        bool check(const int cnt[18], const vector<int>& lastMovePatterns, PlanWithPairs& pwp, bool exact = false) {
-            if (exact) {
-                int total = 0;
-                for (int i = 3; i <= 17; ++i) total += cnt[i];
-                if (total % 5 != 0 || total < 10) return false;
-                int k = total / 5;
-                vector<int> triples, pairs;
-                for (int v = 3; v <= 17; ++v) {
-                    if (cnt[v] == 3) triples.push_back(v);
-                    else if (cnt[v] == 2) pairs.push_back(v);
-                    else if (cnt[v] != 0) return false;
-                }
-                if ((int)triples.size() != k || (int)pairs.size() != k) return false;
-                bool cont = true;
-                for (int i = 1; i < k; ++i) {
-                    if (triples[i] != triples[i - 1] + 1) { cont = false; break; }
-                }
-                if (!cont) return false;
-                pwp.start = triples[0];
-                pwp.len = k;
-                pwp.pairs = pairs;
-                sort(pwp.pairs.begin(), pwp.pairs.end());
-                return true;
-            }
-            else {
-                int maxlen = 0, beststart = -1;
-                for (int start = 3; start <= 14; ++start) {
-                    int len = 0;
-                    while (start + len <= 14 && cnt[start + len] >= 3) len++;
-                    if (len >= 2 && len > maxlen) {
-                        maxlen = len;
-                        beststart = start;
-                    }
-                    start += len;
-                }
-                if (beststart == -1) return false;
-                if (!lastMovePatterns.empty()) {
-                    int lastlen = lastMovePatterns.size() / 5;
-                    int laststart = lastMovePatterns[0];
-                    if (maxlen != lastlen || beststart <= laststart) return false;
-                }
-                int tmpCnt[18];
-                memcpy(tmpCnt, cnt, sizeof(tmpCnt));
-                for (int j = 0; j < maxlen; ++j) tmpCnt[beststart + j] -= 3;
-                vector<int> pairs;
-                for (int v = 3; v <= 17; ++v) {
-                    for (int k = 0; k < tmpCnt[v] / 2; ++k) pairs.push_back(v);
-                }
-                if ((int)pairs.size() < maxlen) return false;
-                sort(pairs.begin(), pairs.end());
-                pwp.start = beststart;
-                pwp.len = maxlen;
-                pwp.pairs.assign(pairs.begin(), pairs.begin() + maxlen);
-                return true;
-            }
-        }
-        inline vector<vector<int>> enumerateRocket(const int cnt[18]) {
-            if (cnt[16] >= 1 && cnt[17] >= 1) return {{16, 17}};
-            return {};
-        }
-        inline vector<vector<int>> enumerateBombs(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int minVal = 3;
-            if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4)
-                minVal = lastMovePatterns[0] + 1;
-            for (int v = minVal; v <= 17; ++v) {
-                if (cnt[v] >= 4) result.push_back({v, v, v, v});
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumerateSingles(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int minVal = 3;
-            if (!lastMovePatterns.empty() && lastMovePatterns.size() == 1)
-                minVal = lastMovePatterns[0] + 1;
-            for (int v = minVal; v <= 17; ++v) {
-                if (cnt[v] >= 1) result.push_back({v});
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumeratePairs(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int minVal = 3;
-            if (!lastMovePatterns.empty() && lastMovePatterns.size() == 2)
-                minVal = lastMovePatterns[0] + 1;
-            for (int v = minVal; v <= 17; ++v) {
-                if (cnt[v] >= 2) result.push_back({v, v});
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumerateTriples(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int minVal = 3;
-            if (!lastMovePatterns.empty() && lastMovePatterns.size() == 3)
-                minVal = lastMovePatterns[0] + 1;
-            for (int v = minVal; v <= 17; ++v) {
-                if (cnt[v] >= 3) result.push_back({v, v, v});
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumerateStraights(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int lastLen = 0, lastStart = 0;
-            if (!lastMovePatterns.empty()) {
-                lastLen = lastMovePatterns.size();
-                lastStart = lastMovePatterns[0];
-            }
-            for (int len = 5; len <= 12; ++len) {
-                if (lastLen != 0 && len != lastLen) continue;
-                for (int start = 3; start + len - 1 <= 14; ++start) {
-                    if (lastLen != 0 && start <= lastStart) continue;
-                    bool ok = true;
-                    for (int i = 0; i < len; ++i) {
-                        if (cnt[start + i] < 1) { ok = false; break; }
-                    }
-                    if (ok) {
-                        vector<int> straight;
-                        for (int i = 0; i < len; ++i) straight.push_back(start + i);
-                        result.push_back(straight);
-                    }
-                }
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumeratePairSequences(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int lastLen = 0, lastStart = 0;
-            if (!lastMovePatterns.empty()) {
-                lastLen = lastMovePatterns.size() / 2;
-                lastStart = lastMovePatterns[0];
-            }
-            for (int len = 3; len <= 12; ++len) {
-                if (lastLen != 0 && len != lastLen) continue;
-                for (int start = 3; start + len - 1 <= 14; ++start) {
-                    if (lastLen != 0 && start <= lastStart) continue;
-                    bool ok = true;
-                    for (int i = 0; i < len; ++i) {
-                        if (cnt[start + i] < 2) { ok = false; break; }
-                    }
-                    if (ok) {
-                        vector<int> seq;
-                        for (int i = 0; i < len; ++i) {
-                            seq.push_back(start + i);
-                            seq.push_back(start + i);
-                        }
-                        result.push_back(seq);
-                    }
-                }
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumerateTripleSequence(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int lastLen = 0, lastStart = 0;
-            if (!lastMovePatterns.empty()) {
-                lastLen = lastMovePatterns.size() / 3;
-                lastStart = lastMovePatterns[0];
-            }
-            for (int len = 2; len <= 6; ++len) {
-                if (lastLen != 0 && len != lastLen) continue;
-                for (int start = 3; start + len - 1 <= 14; ++start) {
-                    if (lastLen != 0 && start <= lastStart) continue;
-                    bool ok = true;
-                    for (int i = 0; i < len; ++i) {
-                        if (cnt[start + i] < 3) { ok = false; break; }
-                    }
-                    if (ok) {
-                        vector<int> plane;
-                        for (int i = 0; i < len; ++i) {
-                            for (int k = 0; k < 3; ++k) plane.push_back(start + i);
-                        }
-                        result.push_back(plane);
-                    }
-                }
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumerateTriplesWithOne(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int minTriple = 3;
-            if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4)
-                minTriple = lastMovePatterns[0] + 1;
-            for (int triple = minTriple; triple <= 17; ++triple) {
-                if (cnt[triple] < 3) continue;
-                for (int single = 3; single <= 17; ++single) {
-                    if (single == triple) continue;
-                    if (cnt[single] < 1) continue;
-                    result.push_back({triple, triple, triple, single});
-                }
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumerateTriplesWithTwo(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int minTriple = 3;
-            if (!lastMovePatterns.empty() && lastMovePatterns.size() == 5)
-                minTriple = lastMovePatterns[0] + 1;
-            for (int triple = minTriple; triple <= 17; ++triple) {
-                if (cnt[triple] < 3) continue;
-                for (int pair = 3; pair <= 17; ++pair) {
-                    if (pair == triple) continue;
-                    if (cnt[pair] < 2) continue;
-                    result.push_back({triple, triple, triple, pair, pair});
-                }
-            }
-            return result;
-        }
-        inline vector<vector<int>> enumeratePlanesWithSingles(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int lastLen = 0, lastStart = 0;
-            if (!lastMovePatterns.empty()) {
-                lastLen = lastMovePatterns.size() / 4;
-                lastStart = lastMovePatterns[0];
-            }
-            for (int len = 2; len <= 4; ++len) {
-                if (lastLen != 0 && len != lastLen) continue;
-                for (int start = 3; start + len - 1 <= 14; ++start) {
-                    if (lastLen != 0 && start <= lastStart) continue;
-                    bool ok = true;
-                    for (int i = 0; i < len; ++i) {
-                        if (cnt[start + i] < 3) { ok = false; break; }
-                    }
-                    if (!ok) continue;
-                    // 收集可用单牌（不能与飞机点数重复）
                     vector<int> singles;
-                    for (int v = 3; v <= 17; ++v) {
-                        bool used = false;
-                        for (int i = 0; i < len; ++i) if (start + i == v) { used = true; break; }
-                        if (used) continue;
-                        if (cnt[v] >= 1) singles.push_back(v);
+                    for (int s = 3; s <= 17; ++s) {
+                        if (s != q && cnt[s] >= 1) singles.push_back(s);
                     }
-                    if ((int)singles.size() < len) continue;
-                    // 枚举所有组合（C(singles.size(), len)），为了性能，只取最小的len个单牌作为代表
-                    // 但为了完整性，这里实现简单的递归枚举（实际手牌中单牌数量有限，开销不大）
-                    vector<int> planeBody;
-                    for (int i = 0; i < len; ++i)
-                        for (int k = 0; k < 3; ++k) planeBody.push_back(start + i);
-                    if (singles.size() >= len) {
-                        std::sort(singles.begin(), singles.end());
-                        singles.resize(len);
-                        vector<int> action = planeBody;
-                        action.insert(action.end(), singles.begin(), singles.end());
-                        result.push_back(action);
-                        }                
-                       
+                    if (singles.size() >= 2) {
+                        qws.quad = q;
+                        qws.single1 = singles[0];
+                        qws.single2 = singles[1];
+                        return true;
+                    }
                 }
             }
-            return result;
+            return false;
         }
-        inline vector<vector<int>> enumeratePlanesWithPairs(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int lastLen = 0, lastStart = 0;
-            if (!lastMovePatterns.empty()) {
-                lastLen = lastMovePatterns.size() / 5;
-                lastStart = lastMovePatterns[0];
-            }
-            for (int len = 2; len <= 4; ++len) {
-                if (lastLen != 0 && len != lastLen) continue;
-                for (int start = 3; start + len - 1 <= 14; ++start) {
-                    if (lastLen != 0 && start <= lastStart) continue;
-                    bool ok = true;
-                    for (int i = 0; i < len; ++i) {
-                        if (cnt[start + i] < 3) { ok = false; break; }
-                    }
-                    if (!ok) continue;
-                    // 收集可用对子（不能与飞机点数重复）
-                    vector<int> pairs;
-                    for (int v = 3; v <= 17; ++v) {
-                        bool used = false;
-                        for (int i = 0; i < len; ++i) if (start + i == v) { used = true; break; }
-                        if (used) continue;
-                        if (cnt[v] >= 2) pairs.push_back(v);
-                    }
-                    if ((int)pairs.size() < len) continue;
-                    // 枚举所有组合
-                    vector<int> planeBody;
-                    for (int i = 0; i < len; ++i)
-                        for (int k = 0; k < 3; ++k) planeBody.push_back(start + i);
-                     if (pairs.size() >= len) {
-                        std::sort(pairs.begin(), pairs.end());
-                        pairs.resize(len);   // 只保留最小的 len 个对子
+    }
 
-                        vector<int> action = planeBody;
-                        for (int v : pairs) {
-                            action.push_back(v);
-                            action.push_back(v);
-                        }
-                        result.push_back(action);
+    // QuadWithPairs
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, QuadWithPairs& qwp, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            if (total != 8) return false;
+            int quadVal = -1;
+            vector<int> pairs;
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] == 4) quadVal = v;
+                else if (cnt[v] == 2) pairs.push_back(v);
+                else if (cnt[v] != 0) return false;
+            }
+            if (quadVal != -1 && pairs.size() == 2) {
+                qwp.quad = quadVal;
+                qwp.pair1 = pairs[0];
+                qwp.pair2 = pairs[1];
+                return true;
+            }
+            return false;
+        }
+        else {
+            for (int q = 3; q <= 17; ++q) {
+                if (cnt[q] >= 4) {
+                    if (!lastMovePatterns.empty()) {
+                        int lastQuad = lastMovePatterns[0];
+                        if (q <= lastQuad) continue;
+                    }
+                    vector<int> pairs;
+                    for (int s = 3; s <= 17; ++s) {
+                        if (s != q && cnt[s] >= 2) pairs.push_back(s);
+                    }
+                    if (pairs.size() >= 2) {
+                        qwp.quad = q;
+                        qwp.pair1 = pairs[0];
+                        qwp.pair2 = pairs[1];
+                        return true;
                     }
                 }
             }
-            return result;
+            return false;
         }
-        inline vector<vector<int>> enumerateQuadWithSingles(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int minQuad = 3;
-            if (!lastMovePatterns.empty() && lastMovePatterns.size() == 6)
-                minQuad = lastMovePatterns[0] + 1;
-            for (int quad = minQuad; quad <= 17; ++quad) {
-                if (cnt[quad] < 4) continue;
+    }
+
+    // PlanWithSingles (飞机带单牌)
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, PlanWithSingles& pws, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            if (total % 4 != 0 || total < 8) return false;
+            int k = total / 4;
+            vector<int> triples, singles;
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] == 3) triples.push_back(v);
+                else if (cnt[v] == 1) singles.push_back(v);
+                else if (cnt[v] != 0) return false;
+            }
+            if ((int)triples.size() != k || (int)singles.size() != k) return false;
+            // 检查三张部分是否连续
+            bool cont = true;
+            for (int i = 1; i < k; ++i) {
+                if (triples[i] != triples[i - 1] + 1) { cont = false; break; }
+            }
+            if (!cont) return false;
+            // 单牌不能与三张点数重复（已经通过 cnt 检查，因为三张部分占3张，单牌占1张，不会重复）
+            pws.start = triples[0];
+            pws.len = k;
+            pws.singles = singles;
+            sort(pws.singles.begin(), pws.singles.end()); // 确保有序
+            return true;
+        }
+        else {
+            int maxlen = 0, beststart = -1;
+            for (int start = 3; start <= 14; ++start) {
+                int len = 0;
+                while (start + len <= 14 && cnt[start + len] >= 3) len++;
+                if (len >= 2 && len > maxlen) {
+                    maxlen = len;
+                    beststart = start;
+                }
+                start += len;
+            }
+            if (beststart == -1) return false;
+            if (!lastMovePatterns.empty()) {
+                int lastlen = lastMovePatterns.size() / 4;
+                int laststart = lastMovePatterns[0];
+                if (maxlen != lastlen || beststart <= laststart) return false;
+            }
+            int tmpCnt[18];
+            memcpy(tmpCnt, cnt, sizeof(tmpCnt));
+            for (int j = 0; j < maxlen; ++j) tmpCnt[beststart + j] -= 3;
+            vector<int> singles;
+            for (int v = 3; v <= 17; ++v) {
+                for (int k = 0; k < tmpCnt[v]; ++k) singles.push_back(v);
+            }
+            if ((int)singles.size() < maxlen) return false;
+            sort(singles.begin(), singles.end());
+            pws.start = beststart;
+            pws.len = maxlen;
+            pws.singles.assign(singles.begin(), singles.begin() + maxlen);
+            return true;
+        }
+    }
+
+    // PlanWithPairs (飞机带对子)
+    bool check(const int cnt[18], const vector<int>& lastMovePatterns, PlanWithPairs& pwp, bool exact = false) {
+        if (exact) {
+            int total = 0;
+            for (int i = 3; i <= 17; ++i) total += cnt[i];
+            if (total % 5 != 0 || total < 10) return false;
+            int k = total / 5;
+            vector<int> triples, pairs;
+            for (int v = 3; v <= 17; ++v) {
+                if (cnt[v] == 3) triples.push_back(v);
+                else if (cnt[v] == 2) pairs.push_back(v);
+                else if (cnt[v] != 0) return false;
+            }
+            if ((int)triples.size() != k || (int)pairs.size() != k) return false;
+            bool cont = true;
+            for (int i = 1; i < k; ++i) {
+                if (triples[i] != triples[i - 1] + 1) { cont = false; break; }
+            }
+            if (!cont) return false;
+            pwp.start = triples[0];
+            pwp.len = k;
+            pwp.pairs = pairs;
+            sort(pwp.pairs.begin(), pwp.pairs.end());
+            return true;
+        }
+        else {
+            int maxlen = 0, beststart = -1;
+            for (int start = 3; start <= 14; ++start) {
+                int len = 0;
+                while (start + len <= 14 && cnt[start + len] >= 3) len++;
+                if (len >= 2 && len > maxlen) {
+                    maxlen = len;
+                    beststart = start;
+                }
+                start += len;
+            }
+            if (beststart == -1) return false;
+            if (!lastMovePatterns.empty()) {
+                int lastlen = lastMovePatterns.size() / 5;
+                int laststart = lastMovePatterns[0];
+                if (maxlen != lastlen || beststart <= laststart) return false;
+            }
+            int tmpCnt[18];
+            memcpy(tmpCnt, cnt, sizeof(tmpCnt));
+            for (int j = 0; j < maxlen; ++j) tmpCnt[beststart + j] -= 3;
+            vector<int> pairs;
+            for (int v = 3; v <= 17; ++v) {
+                for (int k = 0; k < tmpCnt[v] / 2; ++k) pairs.push_back(v);
+            }
+            if ((int)pairs.size() < maxlen) return false;
+            sort(pairs.begin(), pairs.end());
+            pwp.start = beststart;
+            pwp.len = maxlen;
+            pwp.pairs.assign(pairs.begin(), pairs.begin() + maxlen);
+            return true;
+        }
+    }
+    int getMainValueOfLastMove(const vector<int>& lastMovePatterns) {
+        if (lastMovePatterns.empty()) return 0;
+        int cnt[18] = { 0 };
+        for (int v : lastMovePatterns) cnt[v]++;
+
+        int sz = lastMovePatterns.size();
+
+        // 单张/对子/三条/炸弹：首元素就是主值
+        if (sz == 1 || sz == 2 || sz == 3 || sz == 4) {
+            return lastMovePatterns[0];
+        }
+
+        // 火箭：大小王，也正确
+        if (sz == 2 && cnt[16] == 1 && cnt[17] == 1) return 16; // 大小王比较时16<17，但火箭最大，用16也行
+
+        // 顺子：sz张，都是1张且连续
+        bool isStraight = true;
+        int startStraight = -1, lenStraight = 0;
+        for (int v = 3; v <= 14; ++v) {
+            if (cnt[v] == 1) {
+                if (startStraight == -1) startStraight = v;
+                lenStraight++;
+            }
+            else if (cnt[v] > 1) { isStraight = false; break; }
+        }
+        if (isStraight && lenStraight == sz) return startStraight;
+
+        // 连对：sz是偶数，每张2且连续
+        if (sz % 2 == 0) {
+            bool isPairSeq = true;
+            int startPS = -1, lenPS = 0;
+            for (int v = 3; v <= 14; ++v) {
+                if (cnt[v] == 2) {
+                    if (startPS == -1) startPS = v;
+                    lenPS++;
+                }
+                else if (cnt[v] != 0) { isPairSeq = false; break; }
+            }
+            if (isPairSeq && lenPS == sz / 2) return startPS;
+        }
+
+        // 飞机无翼：sz是3的倍数，每张3且连续
+        if (sz % 3 == 0) {
+            bool isTriSeq = true;
+            int startTS = -1, lenTS = 0;
+            for (int v = 3; v <= 14; ++v) {
+                if (cnt[v] == 3) {
+                    if (startTS == -1) startTS = v;
+                    lenTS++;
+                }
+                else if (cnt[v] != 0) { isTriSeq = false; break; }
+            }
+            int k = sz / 3;
+            if (isTriSeq && lenTS == k) return startTS;
+        }
+
+        // 三带一 (sz=4) 或 三带二 (sz=5)：找到cnt==3或>=3的值
+        if (sz == 4 || sz == 5) {
+            for (int v = 3; v <= 17; ++v)
+                if (cnt[v] >= 3) return v;
+        }
+
+        // 四带二单 (sz=6) 或 四带二对 (sz=8)：找到cnt>=4的值
+        if (sz == 6 || sz == 8) {
+            for (int v = 3; v <= 17; ++v)
+                if (cnt[v] >= 4) return v;
+        }
+
+        // 飞机带单 (sz = 4k, k>=2) 或飞机带对 (sz = 5k, k>=2)
+        if ((sz >= 8 && sz % 4 == 0) || (sz >= 10 && sz % 5 == 0)) {
+            int seqStart = -1, seqLen = 0;
+            for (int v = 3; v <= 14; ++v) {
+                if (cnt[v] >= 3) {
+                    if (seqStart == -1) seqStart = v;
+                    seqLen++;
+                }
+                else {
+                    if (seqLen >= 2) break;
+                    seqStart = -1;
+                    seqLen = 0;
+                }
+            }
+            if (seqStart != -1 && seqLen >= 2) return seqStart;
+        }
+
+        // fallback
+        return lastMovePatterns[0];
+    }
+    inline vector<vector<int>> enumerateRocket(const int cnt[18]) {
+        if (cnt[16] >= 1 && cnt[17] >= 1) return { {16, 17} };
+        return {};
+    }
+    inline vector<vector<int>> enumerateBombs(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int minVal = 3;
+        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4)
+            minVal = getMainValueOfLastMove(lastMovePatterns);
+        for (int v = minVal; v <= 17; ++v) {
+            if (cnt[v] >= 4) result.push_back({ v, v, v, v });
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumerateSingles(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int minVal = 3;
+        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 1)
+            minVal = getMainValueOfLastMove(lastMovePatterns);
+        for (int v = minVal; v <= 17; ++v) {
+            if (cnt[v] >= 1) result.push_back({ v });
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumeratePairs(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int minVal = 3;
+        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 2)
+            minVal = getMainValueOfLastMove(lastMovePatterns);
+        for (int v = minVal; v <= 17; ++v) {
+            if (cnt[v] >= 2) result.push_back({ v, v });
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumerateTriples(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int minVal = 3;
+        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 3)
+            minVal = lastMovePatterns[0] + 1;
+        for (int v = minVal; v <= 17; ++v) {
+            if (cnt[v] >= 3) result.push_back({ v, v, v });
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumerateStraights(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int lastLen = 0, lastStart = 0;
+        if (!lastMovePatterns.empty()) {
+            lastLen = lastMovePatterns.size();
+            lastStart = getMainValueOfLastMove(lastMovePatterns);
+        }
+        for (int len = 5; len <= 12; ++len) {
+            if (lastLen != 0 && len != lastLen) continue;
+            for (int start = 3; start + len - 1 <= 14; ++start) {
+                if (lastLen != 0 && start <= lastStart) continue;
+                bool ok = true;
+                for (int i = 0; i < len; ++i) {
+                    if (cnt[start + i] < 1) { ok = false; break; }
+                }
+                if (ok) {
+                    vector<int> straight;
+                    for (int i = 0; i < len; ++i) straight.push_back(start + i);
+                    result.push_back(straight);
+                }
+            }
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumeratePairSequences(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int lastLen = 0, lastStart = 0;
+        if (!lastMovePatterns.empty()) {
+            lastLen = lastMovePatterns.size() / 2;
+            lastStart = getMainValueOfLastMove(lastMovePatterns);
+        }
+        for (int len = 3; len <= 12; ++len) {
+            if (lastLen != 0 && len != lastLen) continue;
+            for (int start = 3; start + len - 1 <= 14; ++start) {
+                if (lastLen != 0 && start <= lastStart) continue;
+                bool ok = true;
+                for (int i = 0; i < len; ++i) {
+                    if (cnt[start + i] < 2) { ok = false; break; }
+                }
+                if (ok) {
+                    vector<int> seq;
+                    for (int i = 0; i < len; ++i) {
+                        seq.push_back(start + i);
+                        seq.push_back(start + i);
+                    }
+                    result.push_back(seq);
+                }
+            }
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumerateTripleSequence(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int lastLen = 0, lastStart = 0;
+        if (!lastMovePatterns.empty()) {
+            lastLen = lastMovePatterns.size() / 3;
+            lastStart = getMainValueOfLastMove(lastMovePatterns);
+        }
+        for (int len = 2; len <= 6; ++len) {
+            if (lastLen != 0 && len != lastLen) continue;
+            for (int start = 3; start + len - 1 <= 14; ++start) {
+                if (lastLen != 0 && start <= lastStart) continue;
+                bool ok = true;
+                for (int i = 0; i < len; ++i) {
+                    if (cnt[start + i] < 3) { ok = false; break; }
+                }
+                if (ok) {
+                    vector<int> plane;
+                    for (int i = 0; i < len; ++i) {
+                        for (int k = 0; k < 3; ++k) plane.push_back(start + i);
+                    }
+                    result.push_back(plane);
+                }
+            }
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumerateTriplesWithOne(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int minTriple = 3;
+        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4)
+            minTriple = getMainValueOfLastMove(lastMovePatterns);
+        for (int triple = minTriple; triple <= 17; ++triple) {
+            if (cnt[triple] < 3) continue;
+            for (int single = 3; single <= 17; ++single) {
+                if (single == triple) continue;
+                if (cnt[single] < 1) continue;
+                result.push_back({ triple, triple, triple, single });
+            }
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumerateTriplesWithTwo(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int minTriple = 3;
+        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 5)
+            minTriple = getMainValueOfLastMove(lastMovePatterns);
+        for (int triple = minTriple; triple <= 17; ++triple) {
+            if (cnt[triple] < 3) continue;
+            for (int pair = 3; pair <= 17; ++pair) {
+                if (pair == triple) continue;
+                if (cnt[pair] < 2) continue;
+                result.push_back({ triple, triple, triple, pair, pair });
+            }
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumeratePlanesWithSingles(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int lastLen = 0, lastStart = 0;
+        if (!lastMovePatterns.empty()) {
+            lastLen = lastMovePatterns.size() / 4;
+            lastStart = getMainValueOfLastMove(lastMovePatterns);
+        }
+        for (int len = 2; len <= 4; ++len) {
+            if (lastLen != 0 && len != lastLen) continue;
+            for (int start = 3; start + len - 1 <= 14; ++start) {
+                if (lastLen != 0 && start <= lastStart) continue;
+                bool ok = true;
+                for (int i = 0; i < len; ++i) {
+                    if (cnt[start + i] < 3) { ok = false; break; }
+                }
+                if (!ok) continue;
+                // 收集可用单牌（不能与飞机点数重复）
                 vector<int> singles;
-                for (int s = 3; s <= 17; ++s) {
-                    if (s != quad && cnt[s] >= 1) singles.push_back(s);
+                for (int v = 3; v <= 17; ++v) {
+                    bool used = false;
+                    for (int i = 0; i < len; ++i) if (start + i == v) { used = true; break; }
+                    if (used) continue;
+                    if (cnt[v] >= 1) singles.push_back(v);
                 }
-                if (singles.size() < 2) continue;
-                 if (singles.size() >= 2) {
+                if ((int)singles.size() < len) continue;
+                // 枚举所有组合（C(singles.size(), len)），为了性能，只取最小的len个单牌作为代表
+                // 但为了完整性，这里实现简单的递归枚举（实际手牌中单牌数量有限，开销不大）
+                vector<int> planeBody;
+                for (int i = 0; i < len; ++i)
+                    for (int k = 0; k < 3; ++k) planeBody.push_back(start + i);
+                if (singles.size() >= len) {
                     std::sort(singles.begin(), singles.end());
-                    vector<int> action(4, quad);
-                    action.push_back(singles[0]);
-                    action.push_back(singles[1]);
+                    singles.resize(len);
+                    vector<int> action = planeBody;
+                    action.insert(action.end(), singles.begin(), singles.end());
                     result.push_back(action);
                 }
             }
-            return result;
         }
-        inline vector<vector<int>> enumerateQuadWithPairs(const int cnt[18], const vector<int>& lastMovePatterns) {
-            vector<vector<int>> result;
-            int minQuad = 3;
-            if (!lastMovePatterns.empty() && lastMovePatterns.size() == 8)
-                minQuad = lastMovePatterns[0] + 1;
-            for (int quad = minQuad; quad <= 17; ++quad) {
-                if (cnt[quad] < 4) continue;
+        return result;
+    }
+    inline vector<vector<int>> enumeratePlanesWithPairs(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int lastLen = 0, lastStart = 0;
+        if (!lastMovePatterns.empty()) {
+            lastLen = lastMovePatterns.size() / 5;
+            lastStart = getMainValueOfLastMove(lastMovePatterns);
+        }
+        for (int len = 2; len <= 4; ++len) {
+            if (lastLen != 0 && len != lastLen) continue;
+            for (int start = 3; start + len - 1 <= 14; ++start) {
+                if (lastLen != 0 && start <= lastStart) continue;
+                bool ok = true;
+                for (int i = 0; i < len; ++i) {
+                    if (cnt[start + i] < 3) { ok = false; break; }
+                }
+                if (!ok) continue;
+                // 收集可用对子（不能与飞机点数重复）
                 vector<int> pairs;
-                for (int p = 3; p <= 17; ++p) {
-                    if (p != quad && cnt[p] >= 2) pairs.push_back(p);
+                for (int v = 3; v <= 17; ++v) {
+                    bool used = false;
+                    for (int i = 0; i < len; ++i) if (start + i == v) { used = true; break; }
+                    if (used) continue;
+                    if (cnt[v] >= 2) pairs.push_back(v);
                 }
-                if (pairs.size() < 2) continue;
-                 if (pairs.size() >= 2) {
+                if ((int)pairs.size() < len) continue;
+                // 枚举所有组合
+                vector<int> planeBody;
+                for (int i = 0; i < len; ++i)
+                    for (int k = 0; k < 3; ++k) planeBody.push_back(start + i);
+                if (pairs.size() >= len) {
                     std::sort(pairs.begin(), pairs.end());
-                    vector<int> action(4, quad);
-                    action.push_back(pairs[0]); action.push_back(pairs[0]);
-                    action.push_back(pairs[1]); action.push_back(pairs[1]);
+                    pairs.resize(len);   // 只保留最小的 len 个对子
+
+                    vector<int> action = planeBody;
+                    for (int v : pairs) {
+                        action.push_back(v);
+                        action.push_back(v);
+                    }
                     result.push_back(action);
                 }
             }
-            return result;
         }
+        return result;
+    }
+    inline vector<vector<int>> enumerateQuadWithSingles(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int minQuad = 3;
+        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 6) {
+            minQuad = getMainValueOfLastMove(lastMovePatterns);
+        }
+        for (int quad = minQuad; quad <= 17; ++quad) {
+            if (cnt[quad] < 4) continue;
+            vector<int> singles;
+            for (int s = 3; s <= 17; ++s) {
+                if (s != quad && cnt[s] >= 1) singles.push_back(s);
+            }
+            if (singles.size() < 2) continue;
+            if (singles.size() >= 2) {
+                std::sort(singles.begin(), singles.end());
+                vector<int> action(4, quad);
+                action.push_back(singles[0]);
+                action.push_back(singles[1]);
+                result.push_back(action);
+            }
+        }
+        return result;
+    }
+    inline vector<vector<int>> enumerateQuadWithPairs(const int cnt[18], const vector<int>& lastMovePatterns) {
+        vector<vector<int>> result;
+        int minQuad = 3;
+        if (!lastMovePatterns.empty() && lastMovePatterns.size() == 8) {
+            minQuad = getMainValueOfLastMove(lastMovePatterns);
+        }
+        for (int quad = minQuad; quad <= 17; ++quad) {
+            if (cnt[quad] < 4) continue;
+            vector<int> pairs;
+            for (int p = 3; p <= 17; ++p) {
+                if (p != quad && cnt[p] >= 2) pairs.push_back(p);
+            }
+            if (pairs.size() < 2) continue;
+            if (pairs.size() >= 2) {
+                std::sort(pairs.begin(), pairs.end());
+                vector<int> action(4, quad);
+                action.push_back(pairs[0]); action.push_back(pairs[0]);
+                action.push_back(pairs[1]); action.push_back(pairs[1]);
+                result.push_back(action);
+            }
+        }
+        return result;
+    }
+     
 }
 class CardPatternAnalysis {
 private:
     static const  vector<int> reserve_value_table[18];
 public:
-    static const int SINGLE=0;
-    static const int PAIR=1;
-    static const int TRIPLE=2;
-    static const int THREE_WITH_ONE=3;
-    static const int THREE_WITH_TWO=4;
-    static const int TRIPLE_SEQUENCE=7;
-    static const int TRIPLE_SEQUENCE_WITH_TWO_PAIRS=6;
-    static const int TRIPLE_SEQUENCE_WITH_ONE=5;
-    static const int STRAIGHT=9;
-    static const int PAIR_SEQUENCE=8;
-    static const int BOMB=10;
-    static const int ROCKET=11;
+    static const int SINGLE = 0;
+    static const int PAIR = 1;
+    static const int TRIPLE = 2;
+    static const int THREE_WITH_ONE = 3;
+    static const int THREE_WITH_TWO = 4;
+    static const int TRIPLE_SEQUENCE = 7;
+    static const int TRIPLE_SEQUENCE_WITH_TWO_PAIRS = 6;
+    static const int TRIPLE_SEQUENCE_WITH_ONE = 5;
+    static const int STRAIGHT = 9;
+    static const int PAIR_SEQUENCE = 8;
+    static const int BOMB = 10;
+    static const int ROCKET = 11;
     static const int QUAD_WITH_SINGLES = 12;
     static const int QUAD_WITH_PAIRS = 13;
-     static int getCardType(const vector<int>& cards) {
-         vector<int> patterns = divideIntoPatterns(cards);
-            int cnt[18] = {0};
-            for (int v : patterns) cnt[v]++;
-            vector<int> emptyLast;  // 主动出牌时没有上家牌
-            Rocket r;
-            if (PatternCheck::check(cnt, emptyLast, r,true)) return ROCKET;
-            Bomb b;
-            if (PatternCheck::check(cnt, emptyLast, b,true)) return BOMB;
-            Single s;
-            if (PatternCheck::check(cnt, emptyLast, s,true)) return SINGLE;
-            Pair p;
-            if (PatternCheck::check(cnt, emptyLast, p,true)) return PAIR;
-            Triple t;
-            if (PatternCheck::check(cnt, emptyLast, t,true)) return TRIPLE;
-            Straight st;
-            if (PatternCheck::check(cnt, emptyLast, st,true)) return STRAIGHT;
-            PairSequence ps;
-            if (PatternCheck::check(cnt, emptyLast, ps,true)) return PAIR_SEQUENCE;
-            TripleSequence ts;
-            if (PatternCheck::check(cnt, emptyLast, ts,true)) return TRIPLE_SEQUENCE;
-            TripleWithOne two1;
-            if (PatternCheck::check(cnt, emptyLast, two1,true)) return THREE_WITH_ONE;
-            TripleWithTwo two2;
-            if (PatternCheck::check(cnt, emptyLast, two2,true)) return THREE_WITH_TWO;
-            QuadWithSingles qws;
-            if (PatternCheck::check(cnt, emptyLast, qws,true)) return QUAD_WITH_SINGLES;
-            QuadWithPairs qwp;
-            if (PatternCheck::check(cnt, emptyLast, qwp,true)) return QUAD_WITH_PAIRS;
-            PlanWithSingles pws;
-            if (PatternCheck::check(cnt, emptyLast, pws,true)) return TRIPLE_SEQUENCE_WITH_ONE;
-            PlanWithPairs pwp;
-            if (PatternCheck::check(cnt, emptyLast, pwp,true)) return TRIPLE_SEQUENCE_WITH_TWO_PAIRS;
-            return -1;
+    static int getCardType(const vector<int>& cards) {
+        vector<int> patterns = divideIntoPatterns(cards);
+        int cnt[18] = { 0 };
+        for (int v : patterns) cnt[v]++;
+        vector<int> emptyLast;  // 主动出牌时没有上家牌
+        Rocket r;
+        if (PatternCheck::check(cnt, emptyLast, r, true)) return ROCKET;
+        Bomb b;
+        if (PatternCheck::check(cnt, emptyLast, b, true)) return BOMB;
+        Single s;
+        if (PatternCheck::check(cnt, emptyLast, s, true)) return SINGLE;
+        Pair p;
+        if (PatternCheck::check(cnt, emptyLast, p, true)) return PAIR;
+        Triple t;
+        if (PatternCheck::check(cnt, emptyLast, t, true)) return TRIPLE;
+        Straight st;
+        if (PatternCheck::check(cnt, emptyLast, st, true)) return STRAIGHT;
+        PairSequence ps;
+        if (PatternCheck::check(cnt, emptyLast, ps, true)) return PAIR_SEQUENCE;
+        TripleSequence ts;
+        if (PatternCheck::check(cnt, emptyLast, ts, true)) return TRIPLE_SEQUENCE;
+        TripleWithOne two1;
+        if (PatternCheck::check(cnt, emptyLast, two1, true)) return THREE_WITH_ONE;
+        TripleWithTwo two2;
+        if (PatternCheck::check(cnt, emptyLast, two2, true)) return THREE_WITH_TWO;
+        QuadWithSingles qws;
+        if (PatternCheck::check(cnt, emptyLast, qws, true)) return QUAD_WITH_SINGLES;
+        QuadWithPairs qwp;
+        if (PatternCheck::check(cnt, emptyLast, qwp, true)) return QUAD_WITH_PAIRS;
+        PlanWithSingles pws;
+        if (PatternCheck::check(cnt, emptyLast, pws, true)) return TRIPLE_SEQUENCE_WITH_ONE;
+        PlanWithPairs pwp;
+        if (PatternCheck::check(cnt, emptyLast, pwp, true)) return TRIPLE_SEQUENCE_WITH_TWO_PAIRS;
+        return -1;
+    }
+    static int getCardTypeFromPoints(const vector<int>& cards) {
+         
+        int cnt[18] = { 0 };
+        for (int v : cards) cnt[v]++;
+        vector<int> emptyLast;  // 主动出牌时没有上家牌
+        Rocket r;
+        if (PatternCheck::check(cnt, emptyLast, r, true)) return ROCKET;
+        Bomb b;
+        if (PatternCheck::check(cnt, emptyLast, b, true)) return BOMB;
+        Single s;
+        if (PatternCheck::check(cnt, emptyLast, s, true)) return SINGLE;
+        Pair p;
+        if (PatternCheck::check(cnt, emptyLast, p, true)) return PAIR;
+        Triple t;
+        if (PatternCheck::check(cnt, emptyLast, t, true)) return TRIPLE;
+        Straight st;
+        if (PatternCheck::check(cnt, emptyLast, st, true)) return STRAIGHT;
+        PairSequence ps;
+        if (PatternCheck::check(cnt, emptyLast, ps, true)) return PAIR_SEQUENCE;
+        TripleSequence ts;
+        if (PatternCheck::check(cnt, emptyLast, ts, true)) return TRIPLE_SEQUENCE;
+        TripleWithOne two1;
+        if (PatternCheck::check(cnt, emptyLast, two1, true)) return THREE_WITH_ONE;
+        TripleWithTwo two2;
+        if (PatternCheck::check(cnt, emptyLast, two2, true)) return THREE_WITH_TWO;
+        QuadWithSingles qws;
+        if (PatternCheck::check(cnt, emptyLast, qws, true)) return QUAD_WITH_SINGLES;
+        QuadWithPairs qwp;
+        if (PatternCheck::check(cnt, emptyLast, qwp, true)) return QUAD_WITH_PAIRS;
+        PlanWithSingles pws;
+        if (PatternCheck::check(cnt, emptyLast, pws, true)) return TRIPLE_SEQUENCE_WITH_ONE;
+        PlanWithPairs pwp;
+        if (PatternCheck::check(cnt, emptyLast, pwp, true)) return TRIPLE_SEQUENCE_WITH_TWO_PAIRS;
+        return -1;
     }
     static vector<int> findCardValue(const vector<int>& handcards, const vector<int>& values) {
-    vector<int> result;
-    vector<int> tempHand = handcards; // 拷贝一份，用于移除已取牌
-    for (int val : values) {
-        // 在 tempHand 中找第一张点数为 val 的牌
-        auto it = find_if(tempHand.begin(), tempHand.end(), [val](int card) {
-            return getCardValue(card) == val;
-        });
-        if (it == tempHand.end()) {
-            // 如果找不到任何一张点数为 val 的牌，返回空（表示取牌失败）
-            return {};
+        vector<int> result;
+        vector<int> tempHand = handcards; // 拷贝一份，用于移除已取牌
+        for (int val : values) {
+            // 在 tempHand 中找第一张点数为 val 的牌
+            auto it = find_if(tempHand.begin(), tempHand.end(), [val](int card) {
+                return getCardValue(card) == val;
+                });
+            if (it == tempHand.end()) {
+                // 如果找不到任何一张点数为 val 的牌，返回空（表示取牌失败）
+                return {};
+            }
+            result.push_back(*it);
+            tempHand.erase(it); // 移除已使用的牌，避免后续重复
         }
-        result.push_back(*it);
-        tempHand.erase(it); // 移除已使用的牌，避免后续重复
-    }
-    return result;
+        return result;
     }
     //是否出完牌
     static bool isallout(const vector<int>& cards) {
-        return cards.empty(); 
+        return cards.empty();
     }
     // 获取牌的数值，0-51分别对应3-2，52是小王，53是大王
     static  int getCardValue(int card) {
-        int res=0;
-        if(card>=0&&card<=3)res=3;
-        else if(card>=4&&card<=7)res=4;
-        else if(card>=8&&card<=11)res=5;
-        else if(card>=12&&card<=15)res=6;
-        else if(card>=16&&card<=19)res=7;
-        else if(card>=20&&card<=23)res=8;
-        else if(card>=24&&card<=27)res=9;
-        else if(card>=28&&card<=31)res=10;
-        else if(card>=32&&card<=35)res=11;
-        else if(card>=36&&card<=39)res=12;
-        else if(card>=40&&card<=43)res=13;
-        else if(card>=44&&card<=47)res=14;
-        else if(card>=48&&card<=51)res=15;
-        else if(card==52)res=16; // 小王
-        else if(card==53)res=17; // 大王
+        int res = 0;
+        if (card >= 0 && card <= 3)res = 3;
+        else if (card >= 4 && card <= 7)res = 4;
+        else if (card >= 8 && card <= 11)res = 5;
+        else if (card >= 12 && card <= 15)res = 6;
+        else if (card >= 16 && card <= 19)res = 7;
+        else if (card >= 20 && card <= 23)res = 8;
+        else if (card >= 24 && card <= 27)res = 9;
+        else if (card >= 28 && card <= 31)res = 10;
+        else if (card >= 32 && card <= 35)res = 11;
+        else if (card >= 36 && card <= 39)res = 12;
+        else if (card >= 40 && card <= 43)res = 13;
+        else if (card >= 44 && card <= 47)res = 14;
+        else if (card >= 48 && card <= 51)res = 15;
+        else if (card == 52)res = 16; // 小王
+        else if (card == 53)res = 17; // 大王
         return res;
     }
     // 将牌转换为数值并排序，方便后续分析
     static vector<int> divideIntoPatterns(const vector<int>& cards) {
         vector<int> patterns;
-        for(int card : cards) {
+        for (int card : cards) {
             patterns.push_back(getCardValue(card));
         }
         sort(patterns.begin(), patterns.end());
         return patterns;
     }
     // 分析手牌，统计每个点数的数量，并记录出现过的点数
-    static void analyzeHand(const vector<int>&hand,int cnt[18],vector<int>& uniqueVals){
-        memset(cnt,0,sizeof(int)*18);
-        for(int card : hand) {
+    static void analyzeHand(const vector<int>& hand, int cnt[18], vector<int>& uniqueVals) {
+        memset(cnt, 0, sizeof(int) * 18);
+        for (int card : hand) {
             int val = getCardValue(card);
             cnt[val]++;
         }
         uniqueVals.clear();
-        for(int v = 3; v <= 17; ++v) {
-            if(cnt[v] > 0) uniqueVals.push_back(v);
+        for (int v = 3; v <= 17; ++v) {
+            if (cnt[v] > 0) uniqueVals.push_back(v);
         }
     }
-     static int evaluateHand(const vector<int>& hand) {
-        int cnt[18] = {0};
+    static int evaluateHand(const vector<int>& hand) {
+        int cnt[18] = { 0 };
         double score = 0;
         for (int card : hand) {
             int val = CardPatternAnalysis::getCardValue(card);
             cnt[val]++;
-            if (val == 17) score += 10;
-            else if (val == 16) score += 8;
-            else if (val == 15) score += 5;
-            else if (val == 14) score += 4;
-            else if (val == 13) score += 3;
-            else if (val == 12) score += 2;
-            else if (val == 11) score += 1;
-            else if (val == 10) score += 1;
+
         }
+        return evaluateHand(cnt);
+    }
+    static int evaluateHand(const int* cnt) {
+
+        double score = 0;
+
+        if (cnt[17]) score += 10;
+        if (cnt[16]) score += 8;
+        if (cnt[15]) score += 5 * cnt[15];
+        if (cnt[14]) score += 4 * cnt[14];
+        if (cnt[13]) score += 3 * cnt[13];
+        if (cnt[12]) score += 2 * cnt[12];
+        if (cnt[11]) score += 1 * cnt[11];
+        if (cnt[10]) score += 1 * cnt[10];
+
         // 炸弹
         for (int i = 3; i <= 17; ++i) {
             if (cnt[i] == 4) score += 15;
@@ -1175,7 +1308,6 @@ public:
         if (singles <= 3) score += 5;
         return (int)score;
     }
-
     static int decideBid(const vector<int>& hand, bool isFirst, bool lastTwoPassed) {
         int score = evaluateHand(hand);
         if (isFirst) score -= 5;
@@ -1223,14 +1355,14 @@ public:
 
     // 检查某点数是否有至少 count 张
     bool canTake(int value, int count) const {
-         if(value < 3 || value > 17) return false; // 无效点数
+        if (value < 3 || value > 17) return false; // 无效点数
         return valueCount[value] >= count;
     }
 
     // 取出 count 张指定点数的牌（返回具体的牌号）
     vector<int> takeCards(int value, int count) {
         if (!canTake(value, count)) return {};
-         auto& vec = valueToCards[value];
+        auto& vec = valueToCards[value];
         vector<int> res(vec.end() - count, vec.end());
         vec.erase(vec.end() - count, vec.end());
         valueCount[value] -= count;
@@ -1239,19 +1371,19 @@ public:
 
     // 按点数序列取牌（每个点数取对应次数）
     vector<int> takeCardsByValues(const vector<int>& values) {
-        int need[18] = {0};
+        int need[18] = { 0 };
         for (int v : values) {
             if (v >= 3 && v <= 17) {
                 need[v]++;
             }
         }
         for (int i = 3; i <= 17; ++i) {
-            if (need[i] > valueCount[i]&&need[i]>0) return {};
+            if (need[i] > valueCount[i] && need[i] > 0) return {};
         }
         vector<int> res;
         for (int v : values) {
             auto cards = takeCards(v, 1);
-            if(cards.empty()) return {}; // 保守起见，虽然理论上不应该出现这种情况
+            if (cards.empty()) return {}; // 保守起见，虽然理论上不应该出现这种情况
             res.insert(res.end(), cards.begin(), cards.end());
         }
         return res;
@@ -1269,16 +1401,18 @@ public:
     // 获取当前手牌总数（可选）
     int totalCards() const {
         int total = 0;
-         for(int i = 3; i <= 17; ++i) {
-            total += valueCount[i]; 
-         }
+        for (int i = 3; i <= 17; ++i) {
+            total += valueCount[i];
+        }
         return total;
     }
 };
 // 游戏状态结构体，用于在博弈搜索（如Minimax）中传递和记录当前游戏状态
 class GameState {
-    public:
-    vector<int> myhand[3];// 三个玩家的手牌，索引0为地主，1为农民甲，2为农民乙
+public:
+    // 三个玩家的手牌，索引0为地主，1为农民甲，2为农民乙
+    int myhand[3][18];
+    int totalCards[3];
     vector<int> publiccard;// 底牌
     vector<vector<int>> history;//使用轻量级数据结构，防止过多复制造成性能问题
     int myRole; // 当前玩家角色 (0:地主, 1:农民甲, 2:农民乙)
@@ -1288,286 +1422,488 @@ class GameState {
     int lastActionPlayer; // 上一个真正的出牌玩家索引（0, 1, 2），用于判断跟牌压力是否需要重置
     bool isGameOver; // 游戏是否结束
     int winner; // 0:地主胜, 1:农民甲胜, 2:农民乙胜
-    mutable bool Actions_cached=false;// 是否已经缓存过当前状态的合法动作
+    mutable bool Actions_cached = false;// 是否已经缓存过当前状态的合法动作
     mutable vector<vector<int>> Cache_Actions;// 缓存当前状态的合法动作，避免重复计算
     // 构造函数，用于初始化状态
-    GameState(const vector<int> hands_[3],const vector<int>& publiccards_,const vector<vector<int>>& history_,int landlord_role_,int my_role_)
-        : history(history_),publiccard(publiccards_),currentPlayer(landlord_role_),myRole(my_role_),landlordRole(landlord_role_),
-        isGameOver(false), winner(-1), currentPassCount(0), lastActionPlayer(-1) {//需要优化初始化函数，暂且搁置
+    GameState(const vector<int> hands_[3], const vector<int>& publiccards_, const vector<vector<int>>& history_, int landlord_role_, int my_role_)
+        : publiccard(publiccards_),
+        history(history_),
+        myRole(my_role_),
+        landlordRole(landlord_role_),
+        currentPassCount(0),
+        currentPlayer(landlord_role_),
+        lastActionPlayer(landlord_role_),
+        isGameOver(false),
+        winner(-1) {//需要优化初始化函数，暂且搁置
         // 1. 初始化手牌和底牌 (直接使用传入的参数)
+        vector<int> numduy;
         for (int i = 0; i < 3; ++i) {
-            myhand[i] = hands_[i];
+            CardPatternAnalysis::analyzeHand(hands_[i], myhand[i], numduy);
+            totalCards[i] = hands_[i].size();
         }
+        
     }
     // 状态复制构造函数，用于递归搜索
-        GameState(const GameState& other)
-                : history(other.history), publiccard(other.publiccard), currentPlayer(other.currentPlayer),
-                myRole(other.myRole), landlordRole(other.landlordRole),
-                currentPassCount(other.currentPassCount), lastActionPlayer(other.lastActionPlayer),
-                isGameOver(other.isGameOver), winner(other.winner),Actions_cached(false) {
-                for (int i = 0; i < 3; ++i) {
-                    myhand[i] = other.myhand[i];
-                }
-            }
-        GameState(GameState&& other) noexcept
-            : myhand{ std::move(other.myhand[0]), std::move(other.myhand[1]), std::move(other.myhand[2]) }
-            , publiccard(std::move(other.publiccard))
-            , history(std::move(other.history))
-            , myRole(other.myRole)
-            , landlordRole(other.landlordRole)
-            , currentPassCount(other.currentPassCount)
-            , currentPlayer(other.currentPlayer)
-            , lastActionPlayer(other.lastActionPlayer)
-            , isGameOver(other.isGameOver)
-            , winner(other.winner)
-            , Actions_cached(false)      // 移动后缓存失效，安全
-            , Cache_Actions()            // 清空缓存向量
-        {
-            
+    GameState(const GameState& other)
+        :  publiccard(other.publiccard),      // 1
+      history(other.history),            // 2
+      myRole(other.myRole),              // 3
+      landlordRole(other.landlordRole),  // 4
+      currentPassCount(other.currentPassCount), // 5
+      currentPlayer(other.currentPlayer),// 6
+      lastActionPlayer(other.lastActionPlayer), // 7
+      isGameOver(other.isGameOver),      // 8
+      winner(other.winner),              // 9
+      Actions_cached(false)  {
+        for (int i = 0; i < 3; ++i) {
+            memcpy(myhand[i], other.myhand[i], sizeof(myhand[i]));
+            totalCards[i] = other.totalCards[i];
         }
-        GameState& operator=(GameState&& other) noexcept {
-            if (this != &other) {
-                // 释放当前资源（vector 会自动释放）
-                myhand[0] = std::move(other.myhand[0]);
-                myhand[1] = std::move(other.myhand[1]);
-                myhand[2] = std::move(other.myhand[2]);
-                publiccard = std::move(other.publiccard);
-                history = std::move(other.history);
-                myRole = other.myRole;
-                landlordRole = other.landlordRole;
-                currentPassCount = other.currentPassCount;
-                currentPlayer = other.currentPlayer;
-                lastActionPlayer = other.lastActionPlayer;
-                isGameOver = other.isGameOver;
-                winner = other.winner;
-                Actions_cached = false;
-                Cache_Actions.clear();
-            }
-            return *this;
+    }
+    GameState(GameState&& other) noexcept
+        :
+        publiccard(std::move(other.publiccard))
+        , history(std::move(other.history))
+        , myRole(other.myRole)
+        , landlordRole(other.landlordRole)
+        , currentPassCount(other.currentPassCount)
+        , currentPlayer(other.currentPlayer)
+        , lastActionPlayer(other.lastActionPlayer)
+        , isGameOver(other.isGameOver)
+        , winner(other.winner)
+        , Actions_cached(false)      // 移动后缓存失效，安全
+        , Cache_Actions()            // 清空缓存向量
+    {
+        for (int i = 0; i < 3; ++i) {
+            memcpy(myhand[i], other.myhand[i], sizeof(myhand[i]));
+            totalCards[i] = other.totalCards[i];
         }
+    }
+    GameState& operator=(GameState&& other) noexcept {
+        if (this != &other) {
+            publiccard = std::move(other.publiccard);
+            history = std::move(other.history);
+            myRole = other.myRole;
+            landlordRole = other.landlordRole;
+            currentPassCount = other.currentPassCount;
+            currentPlayer = other.currentPlayer;
+            lastActionPlayer = other.lastActionPlayer;
+            isGameOver = other.isGameOver;
+            winner = other.winner;
+            Actions_cached = false;
+            Cache_Actions.clear();
+            for (int i = 0; i < 3; ++i) {
+                memcpy(myhand[i], other.myhand[i], sizeof(myhand[i]));
+                totalCards[i] = other.totalCards[i];
+            }
+        }
+        return *this;
+    }
     void applyActionInPlace(const vector<int>& action) {//状态转移函数，根据玩家的出牌动作，生成新的游戏状态
-            if (action.empty()) {// 1. 从玩家手牌中移除出牌
-                this->currentPassCount++;// 过牌，增加连续过牌计数
-                if (this->currentPassCount >= 2) {
-                    this->currentPlayer = this->lastActionPlayer;// 如果连续两人过牌，重置跟牌压力
-                    this->currentPassCount = 0;
-                }
-                else {
-                    this->currentPlayer = (this->currentPlayer + 1) % 3;
-                }
+        if (action.empty()) {// 1. 从玩家手牌中移除出牌
+            this->currentPassCount++;// 过牌，增加连续过牌计数
+            if (this->currentPassCount >= 2) {
+                this->currentPlayer = this->lastActionPlayer;// 如果连续两人过牌，重置跟牌压力
+                this->currentPassCount = 0;
             }
             else {
-                //出牌从当前的手牌中移除出牌
-                for (int card : action) {
-                    auto it = find(this->myhand[this->currentPlayer].begin(), this->myhand[this->currentPlayer].end(), card);
-                    if (it != this->myhand[this->currentPlayer].end()) {
-                        this->myhand[this->currentPlayer].erase(it);
-                    }
-                }
-                //更新历史
-                this->history.push_back(action);
-                //重置连续过牌计数，记录出牌者
-                this->currentPassCount = 0;
-                this->lastActionPlayer = this->currentPlayer;
-                //下一家出牌
                 this->currentPlayer = (this->currentPlayer + 1) % 3;
-                if (this->myhand[this->lastActionPlayer].empty()) {
-                    this->isGameOver = true;
-                    this->winner = this->lastActionPlayer;
-                }
             }
         }
-	GameState applyActionCopy(const vector<int>& action) const {
-            GameState newState=*this;
-            newState.applyActionInPlace(action);
-            return newState;
+        else {
+            //出牌从当前的手牌中移除出牌
+            for (int val : action) {
+                this->myhand[this->currentPlayer][val]--;
+                this->totalCards[this->currentPlayer]--;
+            }
+            //更新历史
+            this->history.push_back(action);
+            //重置连续过牌计数，记录出牌者
+            this->currentPassCount = 0;
+            this->lastActionPlayer = this->currentPlayer;
+            //下一家出牌
+            this->currentPlayer = (this->currentPlayer + 1) % 3;
+            if (this->totalCards[this->lastActionPlayer] == 0) {
+                this->isGameOver = true;
+                this->winner = this->lastActionPlayer;
+            }
         }
-    vector<int> getCurrentPlayerHand() const {return myhand[currentPlayer];}
-    vector<int> getPublicCard() const {return publiccard;}
-    vector<int> getLastMove() const{if(!history.empty()) return history.back();
+    }
+    GameState applyActionCopy(const vector<int>& action) const {
+        GameState newState = *this;
+        newState.applyActionInPlace(action);
+        return newState;
+    }
+    vector<int> getPublicCard() const { return publiccard; }
+    vector<int> getLastMove() const {
+        if (!history.empty()) return history.back();
         else return {};
     }
+    int* getCurrentPlayerHand() {
+        return this->myhand[this->currentPlayer];
+    }
     bool isLeading() const {
-        if(history.empty()) return true;
+        if (history.empty()) return true;
         else return !history.empty() && lastActionPlayer == currentPlayer;
     }
-     
-    vector<vector<int>> getAllActions(){
-        if (Actions_cached) return Cache_Actions;
-            vector<int> hand = getCurrentPlayerHand();
-            HandIndex idx(hand);
-            int cnt[18];
-            vector<int> vals;
-            CardPatternAnalysis::analyzeHand(hand, cnt, vals);
-            vector<int> lastMovePatterns;
-            if (!isLeading()) {
-                vector<int> lastMove = getLastMove();
-                if (!lastMove.empty())
-                    lastMovePatterns = CardPatternAnalysis::divideIntoPatterns(lastMove);
-                // 如果上家出火箭，则只能过牌
-                if (lastMovePatterns.size() == 2 && lastMovePatterns[0] == 16 && lastMovePatterns[1] == 17) {
-                    Cache_Actions = {{}};
-                    Actions_cached = true;
-                    return {{}};
-                }
-            }
-            vector<vector<int>> allActions;
-            // 定义枚举函数指针数组（顺序可任意，但建议火箭炸弹优先，不过主动出牌时全部生成即可）
-            using EnumFunc = function<vector<vector<int>>(const int[18], const vector<int>&)>;
-            vector<EnumFunc> funcs = {
-                PatternCheck::enumerateBombs,
-                PatternCheck::enumerateSingles,
-                PatternCheck::enumeratePairs,
-                PatternCheck::enumerateTriples,
-                PatternCheck::enumerateStraights,
-                PatternCheck::enumeratePairSequences,
-                PatternCheck::enumerateTripleSequence,
-                PatternCheck::enumerateTriplesWithOne,
-                PatternCheck::enumerateTriplesWithTwo,
-                PatternCheck::enumeratePlanesWithSingles,
-                PatternCheck::enumeratePlanesWithPairs,
-                PatternCheck::enumerateQuadWithSingles,
-                PatternCheck::enumerateQuadWithPairs
-            };
-            // 火箭单独处理（因为不需要 lastMovePatterns）
-            auto rocketCombos = PatternCheck::enumerateRocket(cnt);
-            for (auto& combo : rocketCombos) {
-                auto cards = idx.takeCardsByValues(combo);
-                if (!cards.empty()) {allActions.push_back(cards);
-                idx.putCards(cards); // 取牌后立即放回，保持索引状态不变
-                }
-            }
-            for (auto& func : funcs) {
-                if (func == nullptr) continue;
-                auto combos = func(cnt, lastMovePatterns);
-                for (auto& combo : combos) {
-                    auto cards = idx.takeCardsByValues(combo);
-                    if (!cards.empty()) {allActions.push_back(cards);
-                    idx.putCards(cards); // 取牌后立即放回，保持索引状态不变
-                    }
-                }
-            }
-            if (!isLeading()) {
-                allActions.push_back({}); // 过牌
-            }
-            // 不再去重
-            Cache_Actions = allActions;
-            Actions_cached = true;
-            return allActions;
-        }
-}; 
-//====按需生成器====//
-vector<int> getBestActionByPriority(const vector<int>&hand,const vector<int>&lastMove={}){
-    int cnt[18];
-    vector<int> uniqueVals;
-    CardPatternAnalysis::analyzeHand(hand, cnt, uniqueVals);
-    vector<int> lastMovePatterns;
-    if(!lastMove.empty()){
-        lastMovePatterns = CardPatternAnalysis::divideIntoPatterns(lastMove);
+    void copyCurrentCnt(int cnt[18]) const {
+        memcpy(cnt, myhand[currentPlayer], 18 * sizeof(int));
     }
-    using CheckFunc=function<bool(CardPattern&)>;
-    vector<CheckFunc> checkers={
-        [&](CardPattern& p) ->bool {Rocket r; if (PatternCheck::check(cnt, lastMovePatterns, r)) { p = r; return true; } return false;},
- [&](CardPattern& p) ->bool {Bomb b; if (PatternCheck::check(cnt, lastMovePatterns, b)) { p = b; return true; } return false;  },
- [&](CardPattern& p) ->bool {Single s; if (PatternCheck::check(cnt, lastMovePatterns, s)) { p = s; return true; } return false; },
- [&](CardPattern& p) ->bool {Pair pr; if (PatternCheck::check(cnt, lastMovePatterns, pr)) { p = pr; return true; } return false; },
- [&](CardPattern& p) ->bool {Triple t; if (PatternCheck::check(cnt, lastMovePatterns, t)) { p = t; return true; } return false; },
- [&](CardPattern& p) ->bool {Straight st; if (PatternCheck::check(cnt, lastMovePatterns, st)) { p = st; return true; } return false; },
- [&](CardPattern& p) ->bool {PairSequence ps; if (PatternCheck::check(cnt, lastMovePatterns, ps)) { p = ps; return true; } return false; },
- [&](CardPattern& p) ->bool {TripleSequence ts; if (PatternCheck::check(cnt, lastMovePatterns, ts)) { p = ts; return true; } return false; },
- [&](CardPattern& p) ->bool {TripleWithOne two1; if (PatternCheck::check(cnt, lastMovePatterns, two1)) { p = two1; return true; } return false; },
- [&](CardPattern& p) ->bool {TripleWithTwo two2; if (PatternCheck::check(cnt, lastMovePatterns, two2)) { p = two2; return true; } return false;  },
- [&](CardPattern& p) ->bool {QuadWithSingles qws; if (PatternCheck::check(cnt, lastMovePatterns, qws)) { p = qws; return true; } return false; },
- [&](CardPattern& p) ->bool {QuadWithPairs qwp; if (PatternCheck::check(cnt, lastMovePatterns, qwp)) { p = qwp; return true; } return false; },
- [&](CardPattern& p) ->bool { PlanWithSingles pws; if (PatternCheck::check(cnt, lastMovePatterns, pws)) { p = pws; return true; } return false;  },
- [&](CardPattern& p) ->bool {PlanWithPairs pwp; if (PatternCheck::check(cnt, lastMovePatterns, pwp)) { p = pwp; return true; } return false; }
+    vector<vector<int>> getAllActions() {
+        if (Actions_cached) return Cache_Actions;
+        int cnt[18];
+        copyCurrentCnt(cnt);
+        vector<int> lastMovePatterns;
+        int lastType = -1;
+        if (!isLeading()) {
+            vector<int> lastMove = getLastMove();
+            if (!lastMove.empty()) {
+                lastMovePatterns = lastMove;
+                sort(lastMovePatterns.begin(), lastMovePatterns.end());
+                lastType = CardPatternAnalysis::getCardTypeFromPoints(lastMove);
+                // 上家火箭，只能过牌
+                if (lastType == CardPatternAnalysis::ROCKET) {
+                    Cache_Actions = { {} };
+                    Actions_cached = true;
+                    return { {} };
+                }
+            }
+        }
+
+        vector<vector<int>> allActions;
+        using EnumFunc = function<vector<vector<int>>(const int[18], const vector<int>&)>;
+        auto addEnum = [&](EnumFunc func) {
+            auto combos = func(cnt, lastMovePatterns);
+            for (const auto& c : combos) allActions.push_back(c);
+            };
+
+        if (isLeading()) {
+            // 主动出牌：全部牌型枚举
+            auto rockets = PatternCheck::enumerateRocket(cnt);
+            if (!rockets.empty()) allActions.push_back(rockets[0]);
+            addEnum(PatternCheck::enumerateBombs);
+            addEnum(PatternCheck::enumerateSingles);
+            addEnum(PatternCheck::enumeratePairs);
+            addEnum(PatternCheck::enumerateTriples);
+            addEnum(PatternCheck::enumerateStraights);
+            addEnum(PatternCheck::enumeratePairSequences);
+            addEnum(PatternCheck::enumerateTripleSequence);
+            addEnum(PatternCheck::enumerateTriplesWithOne);
+            addEnum(PatternCheck::enumerateTriplesWithTwo);
+            addEnum(PatternCheck::enumeratePlanesWithSingles);
+            addEnum(PatternCheck::enumeratePlanesWithPairs);
+            addEnum(PatternCheck::enumerateQuadWithSingles);
+            addEnum(PatternCheck::enumerateQuadWithPairs);
+        }
+        else {
+            // 跟牌：先加炸弹/火箭（可跨类型）
+            auto rockets = PatternCheck::enumerateRocket(cnt);
+            if (!rockets.empty()) allActions.push_back(rockets[0]);
+            if (lastType == CardPatternAnalysis::BOMB) {
+                addEnum(PatternCheck::enumerateBombs); // 只出更大的炸弹
+            }
+            else {
+                // 上家非炸弹，可出任意炸弹
+                auto bombs = PatternCheck::enumerateBombs(cnt, {});  // 空向量表示主动出炸弹
+                for (auto& b : bombs) allActions.push_back(b);
+            }
+
+            // 同类型动作
+            switch (lastType) {
+            case CardPatternAnalysis::SINGLE:
+                addEnum(PatternCheck::enumerateSingles); break;
+            case CardPatternAnalysis::PAIR:
+                addEnum(PatternCheck::enumeratePairs); break;
+            case CardPatternAnalysis::TRIPLE:
+                addEnum(PatternCheck::enumerateTriples); break;
+            case CardPatternAnalysis::STRAIGHT:
+                addEnum(PatternCheck::enumerateStraights); break;
+            case CardPatternAnalysis::PAIR_SEQUENCE:
+                addEnum(PatternCheck::enumeratePairSequences); break;
+            case CardPatternAnalysis::TRIPLE_SEQUENCE:
+                addEnum(PatternCheck::enumerateTripleSequence); break;
+            case CardPatternAnalysis::THREE_WITH_ONE:
+                addEnum(PatternCheck::enumerateTriplesWithOne); break;
+            case CardPatternAnalysis::THREE_WITH_TWO:
+                addEnum(PatternCheck::enumerateTriplesWithTwo); break;
+            case CardPatternAnalysis::QUAD_WITH_SINGLES:
+                addEnum(PatternCheck::enumerateQuadWithSingles); break;
+            case CardPatternAnalysis::QUAD_WITH_PAIRS:
+                addEnum(PatternCheck::enumerateQuadWithPairs); break;
+            case CardPatternAnalysis::TRIPLE_SEQUENCE_WITH_ONE:
+                addEnum(PatternCheck::enumeratePlanesWithSingles); break;
+            case CardPatternAnalysis::TRIPLE_SEQUENCE_WITH_TWO_PAIRS:
+                addEnum(PatternCheck::enumeratePlanesWithPairs); break;
+            default: break;
+            }
+            allActions.push_back({}); // 过牌
+        }
+
+        Cache_Actions = allActions;
+        Actions_cached = true;
+        return allActions;
+    }
+    static int exactsearch(GameState& state, int depth, int myId, int alpha, int beta) {
+        if (state.isGameOver) {
+            bool landlordWin = (state.winner == state.landlordRole);
+            bool iAmLandlord = (myId == state.landlordRole);
+            return (landlordWin == iAmLandlord) ? 1 : -1;
+        }
+        if (depth <= 0)return 0;
+        auto actions = state.getAllActions();
+        sort(actions.begin(), actions.end(),
+            [](const vector<int>& a, const vector<int>& b) {
+                return a.size() < b.size();
+            });
+        if (actions.empty())actions.push_back({});
+        if (myId == state.currentPlayer) {
+            int value = -2;
+            for (const auto& act : actions) {
+                GameState next = state.applyActionCopy(act);
+                int child = exactsearch(next, depth - 1, myId, alpha, beta);
+                if (child > value)value = child;
+                if (value > alpha)alpha = value;
+                if (alpha >= beta)break;
+            }
+            return value;
+        }
+        else {
+            int value = 2;
+            for (const auto& act : actions) {
+                GameState next = state.applyActionCopy(act);
+                int child = exactsearch(next, depth - 1, myId, alpha, beta);
+                if (child < value)value = child;
+                if (value < beta)beta = value;
+                if (alpha >= beta)break;
+            }
+            return value;
+        }
+    }
+};
+//====按需生成器====//
+vector<int> getBestActionByPriority(const int* hand, const vector<int>& lastMove = {}) {
+    int cnt[18];
+    memcpy(cnt, hand, 18 * sizeof(int));
+    vector<int> lastMovePatterns;
+    if (!lastMove.empty()) {
+        lastMovePatterns = lastMove;
+        sort(lastMovePatterns.begin(), lastMovePatterns.end());
+    }
+    using CheckFunc = function<bool(CardPattern&)>;
+    vector<CheckFunc> checkers = {
+        // 长套优先（不拆牌，高效跑牌）
+  [&](CardPattern& p) ->bool {Straight st; if (PatternCheck::check(cnt, lastMovePatterns, st)) { p = st; return true; } return false; },
+  [&](CardPattern& p) ->bool {PairSequence ps; if (PatternCheck::check(cnt, lastMovePatterns, ps)) { p = ps; return true; } return false; },
+  [&](CardPattern& p) ->bool {TripleSequence ts; if (PatternCheck::check(cnt, lastMovePatterns, ts)) { p = ts; return true; } return false; },
+  [&](CardPattern& p) ->bool {PlanWithSingles pws; if (PatternCheck::check(cnt, lastMovePatterns, pws)) { p = pws; return true; } return false; },
+  [&](CardPattern& p) ->bool {PlanWithPairs pwp; if (PatternCheck::check(cnt, lastMovePatterns, pwp)) { p = pwp; return true; } return false; },
+  // 带牌型
+  [&](CardPattern& p) ->bool {TripleWithOne two1; if (PatternCheck::check(cnt, lastMovePatterns, two1)) { p = two1; return true; } return false; },
+  [&](CardPattern& p) ->bool {TripleWithTwo two2; if (PatternCheck::check(cnt, lastMovePatterns, two2)) { p = two2; return true; } return false; },
+  [&](CardPattern& p) ->bool {QuadWithSingles qws; if (PatternCheck::check(cnt, lastMovePatterns, qws)) { p = qws; return true; } return false; },
+  [&](CardPattern& p) ->bool {QuadWithPairs qwp; if (PatternCheck::check(cnt, lastMovePatterns, qwp)) { p = qwp; return true; } return false; },
+  // 短牌（此时才出单/对/三）
+  [&](CardPattern& p) ->bool {Triple t; if (PatternCheck::check(cnt, lastMovePatterns, t)) { p = t; return true; } return false; },
+  [&](CardPattern& p) ->bool {Pair pr; if (PatternCheck::check(cnt, lastMovePatterns, pr)) { p = pr; return true; } return false; },
+  [&](CardPattern& p) ->bool {Single s; if (PatternCheck::check(cnt, lastMovePatterns, s)) { p = s; return true; } return false; },
+  // 保留武器（绝不轻易出）
+  [&](CardPattern& p) ->bool {Bomb b; if (PatternCheck::check(cnt, lastMovePatterns, b)) { p = b; return true; } return false; },
+  [&](CardPattern& p) ->bool {Rocket r; if (PatternCheck::check(cnt, lastMovePatterns, r)) { p = r; return true; } return false; }
     };
-    for(auto& check:checkers){
+    for (auto& check : checkers) {
         CardPattern pattern;
-        if(check(pattern)){
-            HandIndex idx(hand);
+        if (check(pattern)) {
             return visit([&](auto&& p) -> vector<int> {
                 using T = decay_t< decltype(p) >;
-                if constexpr (is_same_v<T,Rocket>){
-                    auto small = idx.takeCards(16,1);
-                    auto big = idx.takeCards(17,1);
-                    if(small.empty()||big.empty())return {};
-                    return {small[0], big[0]};
-                }else if constexpr (is_same_v<T,Bomb>){
-                    return idx.takeCards(p.value,4);
-                }else if constexpr (is_same_v<T,Single>){
-                    return idx.takeCards(p.value,1);
-                }else if constexpr (is_same_v<T,Pair>){
-                    return idx.takeCards(p.value,2);
-                }else if constexpr (is_same_v<T,Triple>){
-                    return idx.takeCards(p.value,3);
-                }else if constexpr (is_same_v<T,Straight>){
-                    vector<int> targetVals;
-                    for(int i=0;i<p.len;i++) targetVals.push_back(p.start+i);
-                    return idx.takeCardsByValues(targetVals);
-                }else if constexpr (is_same_v<T,PairSequence>){
-                    vector<int> targetVals;
-                    for(int i=0;i<p.len;i++){
-                        targetVals.push_back(p.start+i);
-                        targetVals.push_back(p.start+i);
+                if constexpr (is_same_v<T, Rocket>) {
+
+                    return { 16,17 };
+                }
+                else if constexpr (is_same_v<T, Bomb>) {
+
+                    vector<int> res;
+                    for (int i = 0; i < 4; i++) {
+                        res.push_back(p.value);
                     }
-                    return idx.takeCardsByValues(targetVals);
-                }else if constexpr(is_same_v<T,TripleSequence>){
+                    return res;
+                }
+                else if constexpr (is_same_v<T, Single>) {
+
+                    vector<int>res;
+                    res.push_back(p.value);
+                    return res;
+                }
+                else if constexpr (is_same_v<T, Pair>) {
+
+                    vector<int>res;
+                    for (int i = 0; i < 2; i++)res.push_back(p.value);
+                    return res;
+                }
+                else if constexpr (is_same_v<T, Triple>) {
+
+                    vector<int>res;
+                    for (int i = 0; i < 3; i++)res.push_back(p.value);
+                    return res;
+                }
+                else if constexpr (is_same_v<T, Straight>) {
                     vector<int> targetVals;
-                    for(int i=0;i<p.len;i++){
-                        targetVals.push_back(p.start+i);
-                        targetVals.push_back(p.start+i);
-                        targetVals.push_back(p.start+i);
+                    for (int i = 0; i < p.len; i++) targetVals.push_back(p.start + i);
+                    return  targetVals;
+                }
+                else if constexpr (is_same_v<T, PairSequence>) {
+                    vector<int> targetVals;
+                    for (int i = 0; i < p.len; i++) {
+                        targetVals.push_back(p.start + i);
+                        targetVals.push_back(p.start + i);
                     }
-                    return idx.takeCardsByValues(targetVals);
-                }else if constexpr(is_same_v<T,TripleWithOne>){
-                    vector<int> targetvals(3,p.triple);
+                    return  targetVals;
+                }
+                else if constexpr (is_same_v<T, TripleSequence>) {
+                    vector<int> targetVals;
+                    for (int i = 0; i < p.len; i++) {
+                        targetVals.push_back(p.start + i);
+                        targetVals.push_back(p.start + i);
+                        targetVals.push_back(p.start + i);
+                    }
+                    return  targetVals;
+                }
+                else if constexpr (is_same_v<T, TripleWithOne>) {
+                    vector<int> targetvals(3, p.triple);
                     targetvals.push_back(p.single);
-                    return idx.takeCardsByValues(targetvals);
-                }else if constexpr(is_same_v<T,TripleWithTwo>){
-                    vector<int> targetvals(3,p.triple);
+                    return targetvals;
+                }
+                else if constexpr (is_same_v<T, TripleWithTwo>) {
+                    vector<int> targetvals(3, p.triple);
                     targetvals.push_back(p.pair);
                     targetvals.push_back(p.pair);
-                    return idx.takeCardsByValues(targetvals);
-                }else if constexpr(is_same_v<T,QuadWithSingles>){
-                    vector<int> targetvals(4,p.quad);
+                    return targetvals;
+                }
+                else if constexpr (is_same_v<T, QuadWithSingles>) {
+                    vector<int> targetvals(4, p.quad);
                     targetvals.push_back(p.single1);
                     targetvals.push_back(p.single2);
-                    return idx.takeCardsByValues(targetvals);
-                }else if constexpr(is_same_v<T,QuadWithPairs>){
-                    vector<int> targetvals(4,p.quad);
+                    return  targetvals;
+                }
+                else if constexpr (is_same_v<T, QuadWithPairs>) {
+                    vector<int> targetvals(4, p.quad);
                     targetvals.push_back(p.pair1);
                     targetvals.push_back(p.pair1);
                     targetvals.push_back(p.pair2);
                     targetvals.push_back(p.pair2);
-                    return idx.takeCardsByValues(targetvals);
-                }else if constexpr(is_same_v<T,PlanWithSingles>){
+                    return targetvals;
+                }
+                else if constexpr (is_same_v<T, PlanWithSingles>) {
                     vector<int> targetvals;
-                    for(int i=0;i<p.len;i++){
-                        targetvals.push_back(p.start+i);
-                        targetvals.push_back(p.start+i);
-                        targetvals.push_back(p.start+i);
+                    for (int i = 0; i < p.len; i++) {
+                        targetvals.push_back(p.start + i);
+                        targetvals.push_back(p.start + i);
+                        targetvals.push_back(p.start + i);
                     }
                     targetvals.insert(targetvals.end(), p.singles.begin(), p.singles.end());
-                    return idx.takeCardsByValues(targetvals);
-                }else if constexpr(is_same_v<T,PlanWithPairs>){
+                    return  targetvals;
+                }
+                else if constexpr (is_same_v<T, PlanWithPairs>) {
                     vector<int> targetvals;
-                    for(int i=0;i<p.len;i++){
-                        targetvals.push_back(p.start+i);
-                        targetvals.push_back(p.start+i);
-                        targetvals.push_back(p.start+i);
+                    for (int i = 0; i < p.len; i++) {
+                        targetvals.push_back(p.start + i);
+                        targetvals.push_back(p.start + i);
+                        targetvals.push_back(p.start + i);
                     }
-                    for(int v : p.pairs){
+                    for (int v : p.pairs) {
                         targetvals.push_back(v);
                         targetvals.push_back(v);
                     }
-                    return idx.takeCardsByValues(targetvals);
-                }              
-                 return {};
-            },pattern);
+                    return  targetvals;
+                }
+                return {};
+                }, pattern);
         }
     }
     return {};
+}
+struct OpponentParticle {
+    int hand1[18];
+    int hand2[18];
+};
+class ParticleFilter {
+public:
+    static constexpr int k = 100;
+    static int myRole;
+    static vector<OpponentParticle> particles;
+    static void initialize(const GameState& rootState);
+    static void update(const vector<int>& opponentAction, int opponentId);
+    static OpponentParticle sample();
+};
+void ParticleFilter::initialize(const GameState& rootState) {
+    int usedCnt[18] = { 0 };
+    // 1. 统计我方当前手牌（地主已含底牌）
+    for (int v = 3; v <= 17; v++)
+        usedCnt[v] += rootState.myhand[rootState.myRole][v];
+    // 2. 如果我是农民，我的当前手牌不含底牌，需额外加入底牌
+    if (rootState.myRole != rootState.landlordRole) {
+        for (int card : rootState.publiccard)
+            usedCnt[CardPatternAnalysis::getCardValue(card)]++;
+    }
+    // 3. 统计历史出牌
+    for (const auto& move : rootState.history)
+        for (int v : move) usedCnt[v]++;
+
+    // 4. 构建剩余牌池
+    vector<int> pool;
+    for (int v = 3; v <= 15; v++)
+        for (int i = 0; i < 4 - usedCnt[v]; i++) pool.push_back(v);
+    if (usedCnt[16] < 1) pool.push_back(16);
+    if (usedCnt[17] < 1) pool.push_back(17);
+
+    int need1 = rootState.totalCards[(rootState.myRole + 1) % 3];
+    int need2 = rootState.totalCards[(rootState.myRole + 2) % 3];
+
+    // 安全保护：若池子不够，强制补足（仅用于调试，实际不应发生）
+    while ((int)pool.size() < need1 + need2) {
+        pool.push_back(3); // 补一张最小的牌
+    }
+
+    static mt19937 rng(random_device{}());
+    particles.clear();
+    for (int j = 0; j < k; j++) {
+        shuffle(pool.begin(), pool.end(), rng);
+        OpponentParticle p{};
+        int idx = 0;
+        for (int i = 0; i < need1; ++i) p.hand1[pool[idx++]]++;
+        for (int i = 0; i < need2; ++i) p.hand2[pool[idx++]]++;
+        particles.push_back(p);
+    }
+}
+void ParticleFilter::update(const vector<int>& opponentAction, int opponentId) {
+    int playedCnt[18] = { 0 };
+    for (int v : opponentAction)playedCnt[v]++;
+    vector<OpponentParticle> survivors;
+    for (auto& p : particles) {
+        int* hand = (opponentId == 1) ? p.hand1 : p.hand2;
+        bool vaild = true;
+        for (int v = 3; v <= 17; v++)
+            if (hand[v] < playedCnt[v]) { vaild = false; break; }
+        if (vaild)survivors.push_back(p);
+    }
+    if (survivors.empty()) {
+        return;
+    }
+    for (auto& p : survivors) {
+        int oppIdx = (opponentId - myRole + 3) % 3;
+        int* hand = (oppIdx == 1) ? p.hand1 : p.hand2;
+        for (int v = 3; v <= 17; v++)hand[v] -= playedCnt[v];
+    }
+    static mt19937 rng;
+    uniform_int_distribution<int> dist(0, survivors.size() - 1);
+    particles.clear();
+    for (int j = 0; j < k; j++) {
+        particles.push_back(survivors[dist(rng)]);
+    }
+}
+OpponentParticle ParticleFilter::sample() {
+    static mt19937 rng;
+    uniform_int_distribution<int> dist(0, k - 1);
+    return particles[dist(rng)];
 }
 //蒙特卡洛的实现
 //1.选择基于3个标准牌的好坏程度，历史次数最多，胜负次数，公式：score = wins/visits + C*sqrt(ln(parent_visits)/visits)+a*prior，C为调节探索程度的常数，通常取1.4
@@ -1577,46 +1913,47 @@ vector<int> getBestActionByPriority(const vector<int>&hand,const vector<int>&las
 //5.重复以上步骤，直到达到预设的迭代次数或时间限制，最终选择访问次数最多的子节点作为决策结果(最多1000次迭代)
 class MCTSNode {
 public:
-    GameState *state;
+    GameState* state;
     MCTSNode* parent;
     vector<MCTSNode*> children;
     vector<int> action; // 从父节点到当前节点的动作
-    int visits;
-    int wins;
-    int prior; 
+    int visits;//历史场数
+    int wins;//胜利场数
+    int prior; // 权重
     int max_score; // 用于归一化先验概率的动态常数
     // 先验概率，可以根据启发式评估函数计算得到,evaluateHand函数可以用来评估当前手牌的好坏程度，作为先验概率的一部分
     //先验概率的归一化可以通过将评估分数除以一个动态常数即每个子动作的评估分数中最大的来实现，使得先验概率在0到1之间。
-    MCTSNode( GameState& otherstate, MCTSNode* parent = nullptr,const vector<int>& action={}) 
-        : parent(parent), visits(0), wins(0.0), max_score(0) {
-            this->state = new GameState(otherstate);
-            this->action = action;
+    MCTSNode(GameState& otherstate, MCTSNode* parent = nullptr, const vector<int>& action = {})
+        : parent(parent), visits(0), wins(0), max_score(0) {
+        this->state = new GameState(otherstate);
+        this->action = action;
         // 计算先验分数（未归一化）
         int raw_prior = CardPatternAnalysis::evaluateHand(state->myhand[state->myRole]);
         if (parent) {
             max_score = max(parent->max_score, raw_prior);
-            prior = (max_score > 0) ? (raw_prior * 100) / max_score : 0;
-        } else {
+            prior = (max_score > 0) ? (raw_prior * 100) / max_score : 0;//------权重待调整；问题：max_score整棵树共享一个全局最大值
+        }
+        else {
             max_score = raw_prior;
             prior = (max_score > 0) ? (raw_prior * 100) / max_score : 0;
         }
     }
-    
+
     ~MCTSNode() {
         delete state;
         for (MCTSNode* child : children) {
             delete child;
         }
     }
-    
-    // 选择子节点，基于UCB1公式
+
+    // 选择子节点，基于UCB1.0公式 UBC =  exploit + explore + a*prior
     MCTSNode* selectChild(double C = 1.4) {
         MCTSNode* bestChild = nullptr;
         double bestScore = -1e9;
         for (MCTSNode* child : children) {
-           double exploit = (child->visits > 0) ? (double)child->wins / child->visits : 0.0;
-            double explore = C * sqrt(log(visits + 1) / (child->visits + 1e-6));
-            double UCB = exploit + explore + 0.1 * child->prior; // 加入先验概率的影响
+            double exploit = (child->visits > 0) ? (double)child->wins / child->visits : 0.0;
+            double explore = C * sqrt(log(visits + 1) / (child->visits + 1e-6));//待修改explore和C取值，防止除以0
+            double UCB = exploit + explore + 0.1 * child->prior; // 待修改0.1权重
             if (UCB > bestScore) {
                 bestScore = UCB;
                 bestChild = child;
@@ -1624,317 +1961,552 @@ public:
         }
         return bestChild;
     }
-    
+
     // 扩展子节点
     //贪心策略和随机策略结合，优先扩展评估分数较高的动作，但也保留一定的随机性以增加探索
     void expand() {
-          vector<vector<int>> legalActions = state->getAllActions();
-          //剔除已经扩展过的动作
+        vector<vector<int>> legalActions = state->getAllActions();//待优化，getAllActions函数内部完整枚举，多次调用导致重复计算
+        //剔除已经扩展过的动作
         vector<vector<int>> untried;
-        for(const auto& action : legalActions) {
+        for (const auto& action : legalActions) {
             bool tried = false;
-            for(MCTSNode* child : children) {
-                if(child->action == action) {
+            for (MCTSNode* child : children) {
+                if (child->action == action) {
                     tried = true;
                     break;
                 }
             }
-            if(!tried) untried.push_back(action);
+            if (!tried) untried.push_back(action);
         }
-        if(untried.empty()) return; // 没有未尝试的动作了
+        if (untried.empty()) return; // 没有未尝试的动作了,隐藏问题：没有合法动作时调用方不知
         //随机选择一个未尝试的动作进行扩展
-        int idx = rand() % untried.size();
+        int idx = rand() % untried.size();//问题：untried动作的选择随机效率低，预计策略：对untried动作进行评分，选择评分较小的动作优先选择（添加新参量）
         vector<int> action = untried[idx];
         GameState newState = state->applyActionCopy(action);
         MCTSNode* child = new MCTSNode(newState, this, action);
         children.push_back(child);
 
     }
-    
+
+
     // 模拟游戏直到结束，返回结果（胜利或失败）
-   bool simulate() {
+    bool simulate() {
         GameState simState = *state;
+        if (isUseExactSearch(simState)) {
+            int maxDepth = simState.totalCards[simState.currentPlayer];
+            int result = GameState::exactsearch(simState, maxDepth, state->myRole, -2, 2);
+            return result == 1;
+        }
         const double EPSILON = 0.1; // 10% 概率随机
         static mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
         uniform_real_distribution<double> dist(0.0, 1.0);
-        while (!simState.isGameOver) {
+        const int MAX_SIM_STEPS = 200;
+        int stepCount = 0;
+        while (!simState.isGameOver && stepCount < MAX_SIM_STEPS) {
+            stepCount++;
             vector<int> action;
-            if(simState.isLeading()){
-                action=getBestActionByPriority(simState.getCurrentPlayerHand());
-            }else{
-                action =getBestActionByPriority(simState.getCurrentPlayerHand(), simState.getLastMove());
+            if (dist(rng) < EPSILON) {
+                // 以一定概率选择一个随机合法动作，增加探索
+                vector<vector<int>> legalActions = simState.getAllActions();
+                if (!legalActions.empty()) {
+                    int randomIdx = rng() % legalActions.size();
+                    simState.applyActionInPlace(legalActions[randomIdx]);
+                }
             }
-            if(action.empty())action ={};
-            simState.applyActionInPlace(action);  
-            //  if (dist(rng) < EPSILON) {
-            //     // 以一定概率选择一个随机合法动作，增加探索
-            //     vector<vector<int>> legalActions = simState.getAllActions();
-            //     if (!legalActions.empty()) {
-            //         int randomIdx = rng() % legalActions.size();
-            //         simState = simState.applyAction(legalActions[randomIdx]);
-            //     }
-            //  }
+            else {
+                if (simState.isLeading()) {
+                    action = getBestActionByPriority(simState.getCurrentPlayerHand());
+                }
+                else {
+                    action = getBestActionByPriority(simState.getCurrentPlayerHand(), simState.getLastMove());
+                }
+                if (action.empty())action = {};
+                simState.applyActionInPlace(action);
+            }
         }
-        return simState.winner == state->currentPlayer;
+        if (stepCount >= MAX_SIM_STEPS) {
+            // 平局处理：返回 0.5 或根据当前手牌数判断
+            return false; // 保守视为失败
         }
+        bool landlordWin = (simState.winner == simState.landlordRole);
+        bool iAmLandlord = (simState.myRole == simState.landlordRole);
+        return landlordWin == iAmLandlord;
+    }
+
     // 反向传播结果
     void backpropagate(double result) {
         visits++;
         wins += result;
         if (parent) parent->backpropagate(result);
     }
+
+    // ADDED: 判断节点是否已经完全扩展（所有合法动作都已生成子节点）
+    bool isFullyExpanded() const {
+        if (state->isGameOver) return true;   // 终局节点无需扩展
+        vector<vector<int>> legalActions = state->getAllActions();
+        if (legalActions.empty()) return true;
+        for (const auto& act : legalActions) {
+            bool hasChild = false;
+            for (MCTSNode* child : children) {
+                if (child->action == act) {
+                    hasChild = true;
+                    break;
+                }
+            }
+            if (!hasChild) return false;
+        }
+        return true;
+    }
+
+    // ADDED: 获取胜率最高的子节点（用于最终决策）
+    MCTSNode* bestChild() const {
+        MCTSNode* best = nullptr;
+        double bestWinRate = -1.0;
+        for (MCTSNode* child : children) {
+            if (child->visits == 0) continue;
+            double winRate = (double)child->wins / child->visits;
+            if (winRate > bestWinRate) {
+                bestWinRate = winRate;
+                best = child;
+            }
+        }
+        if (!best && !children.empty()) best = children[0];
+        return best;
+    }
+
+    // ADDED: 获取最优动作（最终返回给外部的出牌）
+    vector<int> getBestAction() const {
+        MCTSNode* best = bestChild();
+        if (best) return best->action;
+        return {};   // 无合法动作时返回空（过牌）
+    }
+
+    // ADDED: 执行一次完整的 MCTS 迭代（选择->扩展->模拟->回溯）
+    void iterate() {
+        MCTSNode* node = this;
+        while (!node->state->isGameOver && node->isFullyExpanded()) {
+            node = node->selectChild();
+            if (!node) break;   // 安全保护
+        }
+
+        if (!node->state->isGameOver) {
+            node->expand();
+
+            if (!node->children.empty())
+                node = node->children.back();
+        }
+        bool win = node->simulate();
+        node->backpropagate(win ? 1.0 : 0.0);
+    }
+    bool isUseExactSearch(const GameState& s) {
+        int total = s.totalCards[0] + s.totalCards[1] + s.totalCards[2];
+        return total <= 6 && s.totalCards[s.currentPlayer] <= 3;
+    }
+
 };
-#include <iomanip>
-//蒙特卡洛树搜索算法的主函数
-void testGetAllActions() {
-    cout << "========== 斗地主动作生成性能测试 ==========" << endl;
-    
-    // 构造一个典型的地主手牌（21张）：包含多种牌型
-    vector<int> testHand;
-    // 两个3
-    testHand.push_back(0); testHand.push_back(1);
-    // 两个4
-    testHand.push_back(4); testHand.push_back(5);
-    // 两个5
-    testHand.push_back(8); testHand.push_back(9);
-    // 两个6
-    testHand.push_back(12); testHand.push_back(13);
-    // 两个7
-    testHand.push_back(16); testHand.push_back(17);
-    // 两个8
-    testHand.push_back(20); testHand.push_back(21);
-    // 9,10,J,Q,K,A,2 各一张
-    testHand.push_back(24); // 9
-    testHand.push_back(28); // 10
-    testHand.push_back(32); // J
-    testHand.push_back(36); // Q
-    testHand.push_back(40); // K
-    testHand.push_back(44); // A
-    testHand.push_back(48); // 2
-    // 小王、大王
-    testHand.push_back(52);
-    testHand.push_back(53);
-    
-    // 农民手牌（简单填充）
-    vector<int> testHand2;
-    for (int i = 0; i < 17; ++i) testHand2.push_back(i);
-    
-    vector<int> hands[3] = {testHand, testHand2, testHand2};
-    vector<vector<int>> history;
-    GameState state(hands, {}, history, 0, 0);
-    
-    auto start = chrono::high_resolution_clock::now();
-    auto actions = state.getAllActions();
-    auto end = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
-    
-    cout << "【主动出牌测试】" << endl;
-    cout << "手牌张数: " << testHand.size() << endl;
-    cout << "生成合法动作数量: " << actions.size() << endl;
-    cout << "耗时: " << duration.count() << " 微秒 (" << fixed << setprecision(2) << duration.count() / 1000.0 << " 毫秒)" << endl;
-    
-    // 统计每种牌型的数量
-    map<string, int> typeCount;
-    for (auto& act : actions) {
-        int type = CardPatternAnalysis::getCardType(act);
-       cout << "动作点数: ";
-        for (int c : act) cout << CardPatternAnalysis::getCardValue(c) << " ";
-        cout << "类型: " << type << endl;
-        switch (type) {
-            case CardPatternAnalysis::ROCKET: typeCount["火箭"]++; break;
-            case CardPatternAnalysis::BOMB: typeCount["炸弹"]++; break;
-            case CardPatternAnalysis::SINGLE: typeCount["单张"]++; break;
-            case CardPatternAnalysis::PAIR: typeCount["对子"]++; break;
-            case CardPatternAnalysis::TRIPLE: typeCount["三张"]++; break;
-            case CardPatternAnalysis::STRAIGHT: typeCount["顺子"]++; break;
-            case CardPatternAnalysis::PAIR_SEQUENCE: typeCount["连对"]++; break;
-            case CardPatternAnalysis::TRIPLE_SEQUENCE: typeCount["飞机"]++; break;
-            case CardPatternAnalysis::THREE_WITH_ONE: typeCount["三带一"]++; break;
-            case CardPatternAnalysis::THREE_WITH_TWO: typeCount["三带二"]++; break;
-            case CardPatternAnalysis::TRIPLE_SEQUENCE_WITH_ONE: typeCount["飞机带单"]++; break;
-            case CardPatternAnalysis::TRIPLE_SEQUENCE_WITH_TWO_PAIRS: typeCount["飞机带对"]++; break;
-            case CardPatternAnalysis::QUAD_WITH_SINGLES: typeCount["四带两单"]++; break;
-            case CardPatternAnalysis::QUAD_WITH_PAIRS: typeCount["四带两对"]++; break;
-            default: typeCount["未知"]++; break;
+vector<int> decideWithParticleFilter(GameState& rootState, int timeMs = 900) {
+    const int N_Worlds = 10;
+    int itersPerWorld = 1500;
+    vector<int> bestAction;
+    double bestWinRate = -1.0;
+    map<vector<int>, int> actionVisits;
+    map<vector<int>, int> actionWins;
+    int totalSims = 0;
+    auto globalDeadline = chrono::steady_clock::now() + chrono::milliseconds(timeMs);
+    for (int w = 0; w < N_Worlds; w++) {
+        if (chrono::steady_clock::now() > globalDeadline)break;
+        OpponentParticle p = ParticleFilter::sample();
+        GameState worldState = rootState;
+        int opp1 = (worldState.myRole + 1) % 3;
+        int opp2 = (worldState.myRole + 2) % 3;
+        memcpy(worldState.myhand[opp1], p.hand1, 18 * sizeof(int));
+        memcpy(worldState.myhand[opp2], p.hand2, 18 * sizeof(int));
+        worldState.totalCards[opp1] = std::accumulate(p.hand1 + 3, p.hand1 + 18, 0);
+        worldState.totalCards[opp2] = std::accumulate(p.hand2 + 3, p.hand2 + 18, 0);
+        MCTSNode rootNode(worldState);
+        auto worldDeadline = chrono::steady_clock::now() + chrono::milliseconds(timeMs / N_Worlds);
+        while (chrono::steady_clock::now() < worldDeadline) {
+            rootNode.iterate();
+            ++totalSims;
+        }
+        for (MCTSNode* child : rootNode.children) {
+            actionVisits[child->action] += child->visits;
+            actionWins[child->action] += child->wins;
         }
     }
-    cout << "牌型分布:" << endl;
-    for (auto& p : typeCount) {
-        cout << "  " << p.first << ": " << p.second << endl;
-    }
-    
-    // 输出一些示例动作（点数表示）
-    cout << "动作示例（随机5个）:" << endl;
-    vector<int> indices(actions.size());
-    iota(indices.begin(), indices.end(), 0);
-    shuffle(indices.begin(), indices.end(), mt19937{random_device{}()});
-    for (int i = 0; i < min(5, (int)actions.size()); ++i) {
-        auto& act = actions[indices[i]];
-        cout << "  ";
-        for (int card : act) {
-            cout << CardPatternAnalysis::getCardValue(card) << " ";
+      cerr << "Total simulations: " << totalSims << endl;
+    for (auto& [act, visits] : actionVisits) {
+        if (visits == 0) continue;
+        double rate = actionWins[act] / (double)visits;
+        if (rate > bestWinRate) {
+            bestWinRate = rate;
+            bestAction = act;
         }
-        cout << endl;
     }
-    // 测试跟牌情况：假设上家出了一个单张5
-    cout << "\n【跟牌测试】上家出单张5（点数5）" << endl;
-    vector<vector<int>> historyWithLast = { {8} }; // 假设上一轮出的是8号牌（黑桃5）
-    GameState state2(hands, {}, historyWithLast, 0, 1); // 当前玩家是农民甲
-    // 手动设置 lastActionPlayer 和 currentPassCount 模拟跟牌场景
-    state2.lastActionPlayer = 0; // 地主出的
-    state2.currentPlayer = 1;
-    // 注意：state2 的构造函数中 lastActionPlayer 默认为 -1，这里需要修正，但为了测试简便，直接调用 getAllActions 会自动根据 history 判断
-    // 重新构造更准确：让 history 包含上家的出牌
-    GameState state3(hands, {}, {{8}}, 0, 1); // history 里有一个出牌记录
-    // 但 state3 的 lastActionPlayer 仍为 -1，需要手动调整或依赖 isLeading 逻辑（history非空且 lastActionPlayer != currentPlayer）
-    // 为了简单，直接调用 state3.getAllActions()，它会根据 history.back() 作为上家牌
-    start = chrono::high_resolution_clock::now();
-    auto actions2 = state3.getAllActions();
-    end = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::microseconds>(end - start);
-    cout << "合法动作数量: " << actions2.size() << endl;
-    cout << "耗时: " << duration.count() << " 微秒 (" << duration.count() / 1000.0 << " 毫秒)" << endl;
-    cout << "动作示例（前10个）:" << endl;
-    for (size_t i = 0; i < min(actions2.size(), (size_t)10); ++i) {
-        cout << "  ";
-        for (int card : actions2[i]) {
-            cout << CardPatternAnalysis::getCardValue(card) << " ";
-        }
-        cout << endl;
-    }
-    
-    // 测试炸弹和火箭的情况
-    cout << "\n【特殊牌型测试】手牌包含炸弹和火箭" << endl;
-    vector<int> bombHand;
-    // 四个3
-    for (int i = 0; i < 4; ++i) bombHand.push_back(i);
-    // 大小王
-    bombHand.push_back(52); bombHand.push_back(53);
-    // 再加一些单牌
-    bombHand.push_back(4); bombHand.push_back(5);
-    vector<int> handsBomb[3] = {bombHand, {}, {}};
-    GameState stateBomb(handsBomb, {}, history, 0, 0);
-    start = chrono::high_resolution_clock::now();
-    auto actionsBomb = stateBomb.getAllActions();
-    end = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::microseconds>(end - start);
-    cout << "手牌张数: " << bombHand.size() << endl;
-    cout << "合法动作数量: " << actionsBomb.size() << endl;
-    cout << "耗时: " << duration.count() << " 微秒 (" << duration.count() / 1000.0 << " 毫秒)" << endl;
-    bool hasRocket = false, hasBomb = false;
-    for (auto& act : actionsBomb) {
-        if (act.size() == 2 && CardPatternAnalysis::getCardValue(act[0]) == 16 && CardPatternAnalysis::getCardValue(act[1]) == 17)
-            hasRocket = true;
-        if (act.size() == 4 && CardPatternAnalysis::getCardValue(act[0]) == 3)
-            hasBomb = true;
-    }
-    cout << "是否包含火箭: " << (hasRocket ? "是" : "否") << endl;
-    cout << "是否包含炸弹(四个3): " << (hasBomb ? "是" : "否") << endl;
-    
-    cout << "========== 测试结束 ==========" << endl;
-    exit(0); // 测试完成后直接退出，不进行正常的 Bot 交互
+    return bestAction;   // 点数序列
 }
+int ParticleFilter::myRole = 0;              // 定义（分配内存）
+vector<OpponentParticle> ParticleFilter::particles;
 int main() {
-    testGetAllActions();
-    // string line, all;
-    // while (getline(cin, line)) all += line;
-    // Json::Reader reader;
-    // Json::Value input;
-    // if (!reader.parse(all, input)) {
-    //     cerr << "Failed to parse JSON" << endl;
-    //     return 1;
-    // }
+    string line, all;
+    while (getline(cin, line)) all += line;
+    Json::Reader reader;
+    Json::Value input;
+    if (!reader.parse(all, input)) {
+        cerr << "Failed to parse JSON" << endl;
+        return 1;
+    }
 
-    // int turnID = input["responses"].size();
-    // Json::Value request = input["requests"][turnID];
+    int turnID = input["responses"].size();
+    Json::Value request = input["requests"][turnID];
 
-    // // ---------- 叫牌阶段 ----------
-    // if (request.isMember("bid")) {
-    //     // 获取当前手牌（叫牌阶段 own 字段存在）
-    //     vector<int> hand;
-    //     if (request.isMember("own")) {
-    //         for (Json::UInt i = 0; i < request["own"].size(); ++i)
-    //             hand.push_back(request["own"][i].asInt());
-    //     }
-    //     // 获取叫牌历史
-    //     vector<int> bidHistory;
-    //     if (request["bid"].isArray()) {
-    //         for (Json::UInt i = 0; i < request["bid"].size(); ++i)
-    //             bidHistory.push_back(request["bid"][i].asInt());
-    //     }
-    //     bool isFirst = bidHistory.empty();
-    //     bool lastTwoPassed = (bidHistory.size() >= 2 && bidHistory[0] == 0 && bidHistory[1] == 0);
-    //     int bid = CardPatternAnalysis::decideBid(hand, isFirst, lastTwoPassed);
-    //     Json::Value ret;
-    //     ret["response"] = bid;
-    //     ret["data"] = input["data"];
-    //     Json::FastWriter writer;
-    //     cout << writer.write(ret) << endl;
-    //     return 0;
-    // }
+    // ---------- 叫牌阶段 ----------
+    if (request.isMember("bid")) {
+        // 获取当前手牌（叫牌阶段 own 字段存在）
+        vector<int> hand;
+        if (request.isMember("own")) {
+            for (Json::UInt i = 0; i < request["own"].size(); ++i)
+                hand.push_back(request["own"][i].asInt());
+        }
+        // 获取叫牌历史
+        vector<int> bidHistory;
+        if (request["bid"].isArray()) {
+            for (Json::UInt i = 0; i < request["bid"].size(); ++i)
+                bidHistory.push_back(request["bid"][i].asInt());
+        }
+        bool isFirst = bidHistory.empty();
+        bool lastTwoPassed = (bidHistory.size() >= 2 && bidHistory[0] == 0 && bidHistory[1] == 0);
+        int bid = CardPatternAnalysis::decideBid(hand, isFirst, lastTwoPassed);
+        Json::Value ret;
+        ret["response"] = bid;
+        ret["data"] = input["data"];
+        Json::FastWriter writer;
+        cout << writer.write(ret) << endl;
+        return 0;
+    }
 
-    // // ---------- 出牌阶段 ----------
-    // // 1. 恢复当前手牌和底牌（参考官方样例的维护方式）
-    // vector<int> currentHand;
-    // Json::Value currentPublicCard;
-    // int myPosition = -1, landlordPosition = -1, landlordBid = -1;
+    // ---------- 出牌阶段 ----------
+        vector<int> currentHand;          // 初始手牌（之后会逐步减去已出牌）
+        vector<int> publicCard;
+        int myPosition = -1, landlordPosition = -1;
 
-    // // 遍历所有历史回合，恢复状态
-    // for (int i = 0; i <= turnID; ++i) {
-    //     Json::Value req = input["requests"][i];
+        // 1. 提取公共信息及初始手牌（包含底牌若为地主）
+        for (int i = 0; i <= turnID; ++i) {
+            Json::Value req = input["requests"][i];
+            if (req.isMember("publiccard") && req.isMember("landlord")) {
+                landlordPosition = req["landlord"].asInt();
+                myPosition = req["pos"].asInt();
+                publicCard.clear();
+                for (Json::UInt j = 0; j < req["publiccard"].size(); ++j)
+                    publicCard.push_back(req["publiccard"][j].asInt());
+                currentHand.clear();
+                for (Json::UInt j = 0; j < req["own"].size(); ++j)
+                    currentHand.push_back(req["own"][j].asInt());
+                if (landlordPosition == myPosition) {
+                    for (int c : publicCard) currentHand.push_back(c);
+                }
+                break;
+            }
+        }
 
-    //     // 当请求包含 publiccard 时，说明这是第一回合的出牌请求（叫分结束后）
-    //     if (req.isMember("publiccard") && req.isMember("landlord")) {
-    //         landlordPosition = req["landlord"].asInt();
-    //         landlordBid = req["finalbid"].asInt();
-    //         myPosition = req["pos"].asInt();
-    //         // 底牌
-    //         currentPublicCard = req["publiccard"];
-    //         // 手牌初始化（含底牌）
-    //         if (req.isMember("own") && req["own"].size() > 0) {
-    //             currentHand.clear();
-    //             for (Json::UInt j = 0; j < req["own"].size(); ++j)
-    //                 currentHand.push_back(req["own"][j].asInt());
-    //         }
-    //          if (landlordPosition == myPosition) {
-    //         for (Json::UInt j = 0; j < currentPublicCard.size(); ++j)
-    //             currentHand.push_back(currentPublicCard[j].asInt());
-    //     }
-    //     }
+        // 2. 收集所有历史动作，同时跟踪当前玩家并更新我们的手牌
+        vector<vector<int>> allMoves;
+        int playerTurn = landlordPosition; // 第一个动作是由地主开始的
 
-    //     // 如果请求包含 own 且当前手牌为空（兜底），也进行初始化
-    //     if (req.isMember("own") && req["own"].size() > 0 && currentHand.empty()) {
-    //         for (Json::UInt j = 0; j < req["own"].size(); ++j)
-    //             currentHand.push_back(req["own"][j].asInt());
-    //     }
+        auto isLandlordFirstRoundPlaceholder = [](const Json::Value& req, const Json::Value& hist) {
+            return req.isMember("publiccard") && hist[0u].empty() && hist[1u].empty();
+        };
 
-    //     // 如果不是最后一回合，根据历史响应（自己出的牌）更新手牌
-    //     if (i < turnID) {
-    //         Json::Value resp = input["responses"][i];
-    //         if (resp.isArray()) {
-    //             for (Json::UInt j = 0; j < resp.size(); ++j) {
-    //                 int card = resp[j].asInt();
-    //                 auto it = find(currentHand.begin(), currentHand.end(), card);
-    //                 if (it != currentHand.end()) currentHand.erase(it);
-    //             }
-    //         }
-    //     }
-    // }
+        for (int i = 1; i <= turnID; ++i) {
+            Json::Value req = input["requests"][i];
+            Json::Value hist = req["history"];
+            if (isLandlordFirstRoundPlaceholder(req, hist)) continue;
 
-    // // 2. 获取当前回合的请求（用于决策）
-    // Json::Value currentRequest = input["requests"][turnID];
-    // // 注意：当前请求可能没有 own 字段，但 history 和 publiccard 可能存在
-    // // GameAI bot(currentRequest["history"], currentPublicCard, currentHand);
-    //  vector<int> move;// = bot.decideMove();
+            auto addMoveAndUpdate = [&](const Json::Value& arr) {
+                if (arr.size() > 0) {
+                    vector<int> move;
+                    for (Json::UInt j = 0; j < arr.size(); ++j) {
+                        int v = CardPatternAnalysis::getCardValue(arr[j].asInt());
+                        move.push_back(v);
+                        // 如果这个动作是我们自己出的，从currentHand中移除
+                        if (playerTurn == myPosition) {
+                            auto it = find(currentHand.begin(), currentHand.end(), arr[j].asInt());
+                            if (it != currentHand.end()) currentHand.erase(it);
+                        }
+                    }
+                    allMoves.push_back(move);
+                } else {
+                    allMoves.push_back({}); // 过牌
+                }
+                playerTurn = (playerTurn + 1) % 3;
+            };
 
-    // // 3. 输出决策
-    // Json::Value ret;
-    // Json::Value output(Json::arrayValue);
-    // for (int card : move) output.append(card);
-    // ret["response"] = output;
-    // ret["data"] = input["data"];
-    // Json::FastWriter writer;
-    // cout << writer.write(ret) << endl;
+            addMoveAndUpdate(hist[0u]);
+            addMoveAndUpdate(hist[1u]);
 
-    return 0;
+            // 处理我们自己的历史响应（如果该回合已完成）
+            if (i < turnID) {
+                Json::Value resp = input["responses"][i];
+                if (resp.isArray() && resp.size() > 0) {
+                    vector<int> move;
+                    for (Json::UInt j = 0; j < resp.size(); ++j) {
+                        int card = resp[j].asInt();
+                        move.push_back(CardPatternAnalysis::getCardValue(card));
+                        // 从手牌移除（这部分之前已经做过，但为保险再做一次）
+                        auto it = find(currentHand.begin(), currentHand.end(), card);
+                        if (it != currentHand.end()) currentHand.erase(it);
+                    }
+                    allMoves.push_back(move);
+                } else {
+                    allMoves.push_back({});
+                }
+                playerTurn = (playerTurn + 1) % 3;
+            }
+        }
+
+        // 处理当前请求的 history（尚未执行的动作）
+        {
+            Json::Value histCur = request["history"];
+            if (!isLandlordFirstRoundPlaceholder(request, histCur)) {
+                auto addMoveAndUpdate = [&](const Json::Value& arr) {
+                    if (arr.size() > 0) {
+                        vector<int> move;
+                        for (Json::UInt j = 0; j < arr.size(); ++j) {
+                            int v = CardPatternAnalysis::getCardValue(arr[j].asInt());
+                            move.push_back(v);
+                            if (playerTurn == myPosition) {
+                                auto it = find(currentHand.begin(), currentHand.end(), arr[j].asInt());
+                                if (it != currentHand.end()) currentHand.erase(it);
+                            }
+                        }
+                        allMoves.push_back(move);
+                    } else {
+                        allMoves.push_back({});
+                    }
+                    playerTurn = (playerTurn + 1) % 3;
+                };
+                addMoveAndUpdate(histCur[0u]);
+                addMoveAndUpdate(histCur[1u]);
+            }
+        }
+
+        // 3. 构造 GameState 并重放动作（注意此时 currentHand 已经是实际剩余手牌）
+        vector<int> initHands[3];
+        initHands[myPosition] = currentHand; // 已正确扣减
+        initHands[(myPosition + 1) % 3] = {};
+        initHands[(myPosition + 2) % 3] = {};
+        vector<vector<int>> emptyHistory;
+        GameState rootState(initHands, publicCard, emptyHistory, landlordPosition, myPosition);
+        for (int p = 0; p < 3; ++p) {
+            if (p == myPosition) continue;
+            rootState.totalCards[p] = (p == landlordPosition) ? 20 : 17;
+        }
+        for (const auto& move : allMoves)
+            rootState.applyActionInPlace(move);
+
+        // 4. 检查并决策
+        ParticleFilter::myRole = myPosition;
+        ParticleFilter::initialize(rootState);
+        if (rootState.currentPlayer != myPosition) {
+            Json::Value ret;
+            ret["response"] = Json::arrayValue;
+            ret["data"] = input["data"];
+            Json::FastWriter writer;
+            cout << writer.write(ret) << endl;
+            return 0;
+        }
+
+        vector<int> bestAction = decideWithParticleFilter(rootState, 900);
+        vector<int> cardMove;
+        vector<int> tempHand = currentHand; // 此时 currentHand 是真实剩余手牌
+        for (int val : bestAction) {
+            auto it = find_if(tempHand.begin(), tempHand.end(), [val](int c) {
+                return CardPatternAnalysis::getCardValue(c) == val;
+            });
+            if (it != tempHand.end()) {
+                cardMove.push_back(*it);
+                tempHand.erase(it);
+            } else {
+                cardMove.clear();
+                break;
+            }
+        }
+
+        Json::Value ret;
+        Json::Value output(Json::arrayValue);
+        for (int c : cardMove) output.append(c);
+        ret["response"] = output;
+        ret["data"] = input["data"];
+        Json::FastWriter writer;
+        cout << writer.write(ret) << endl;
+        return 0;
 }
+//// 测试用 main 函数，替换原有的 main
+//// 根据点数返回该点数的第一张牌ID（0-53）
+//int cardIdByValue(int val) {
+//    for (int c = 0; c <= 53; ++c) {
+//        if (CardPatternAnalysis::getCardValue(c) == val)
+//            return c;
+//    }
+//    return -1;
+//}
+//int main() {
+//    int testCase = 1;   // 修改这里测试不同场景：1、2、3、4
+//
+//    // 通用变量
+//    int myPos, landlordPos, opp1, opp2;
+//    vector<int> initialHand;
+//    vector<int> publicCard;
+//    struct HistoryStep { int player; vector<int> pointMove; };
+//    vector<HistoryStep> steps;
+//    string caseDesc;
+//
+//    // 根据测试用例设置
+//    switch (testCase) {
+//    case 1: {
+//        // 农民（非地主），手中有炸弹 4444，还有一些散牌
+//        caseDesc = "农民，手中有炸弹，上家（地主）出顺子 34567";
+//        myPos = 0;          // 假设我是玩家0
+//        landlordPos = 1;    // 地主是玩家1
+//        opp1 = 1;           // 地主（上家）
+//        opp2 = 2;           // 另一个农民
+//        // 我的初始手牌（17张）：炸弹4444，其他单张
+//        initialHand = {
+//            4,5,6,7,         // 4张4，构成炸弹
+//            8,9,10,11,12,13,14, // 一些单牌
+//            // 实际需要17张，补齐
+//        };
+//        // 为了简化，我们只放重点牌，并让 totalCards 正确
+//        // 真正的17张：四个4，五个5,6,7,8,9各一张，剩6张随便填小牌
+//        initialHand = {
+//            4,5,6,7,        // 炸弹4444
+//            3,3,3,          // 三个3（三条）
+//            8,9,10,11,12,13,14, // 其他单张
+//        };
+//        // 需要补到17张，可以重复填充（但实际对局只能4张同点数，我们这里只测试逻辑，手牌内容不必完美）
+//        publicCard = { 15,16,17 }; // 底牌（但不重要）
+//        // 历史：地主先出顺子 3,4,5,6,7 （点数）
+//        steps.push_back({ opp1, {3,4,5,6,7} }); // 地主出顺子
+//        steps.push_back({ myPos, {} }); // 另一个农民过牌（这里假设轮到我们前，另一农民已过）
+//        // 现在轮到我出牌
+//        break;
+//    }
+//    case 2: {
+//        caseDesc = "地主主动出牌，有顺子、炸弹、单张";
+//        myPos = 0; landlordPos = 0; opp1 = 1; opp2 = 2;
+//        // 20张合法手牌：
+//        // 炸弹4444：4,5,6,7
+//        // 顺子5~10：8,12,16,20,24,28
+//        // 单3：0
+//        // 火箭：52,53
+//        // 对子J：32,33
+//        // 对子Q：36,37
+//        // 对子K：40,41
+//        // 单A：44
+//        initialHand = { 4,5,6,7, 8,12,16,20,24,28, 0, 52,53, 32,33, 36,37, 40,41, 44 };
+//        publicCard = {};
+//        break;
+//    }
+//    case 3: {
+//        // 任何人，上家出火箭
+//        caseDesc = "上家出火箭，只能过牌";
+//        myPos = 1;
+//        landlordPos = 1;
+//        opp1 = 2;
+//        opp2 = 0;
+//        initialHand = { 30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46 }; // 随便
+//        publicCard = {};
+//        steps.push_back({ opp2, {16,17} }); // 上上家出火箭
+//        steps.push_back({ opp1, {} });      // 上家过牌
+//        break;
+//    }
+//    case 4: {
+//        caseDesc = "跟牌：三带一 999带4 压 888带3";
+//        myPos = 0; landlordPos = 1; opp1 = 1; opp2 = 2;
+//        // 17张手牌（农民），包含三条9和单4，其余牌合法
+//        // 三条9：24,25,26
+//        // 单4：4
+//        // 其余13张：3,5,6,7,8,10,J,Q,K,A 各一张，再加33(J方块),37(Q方块),41(K方块)凑对子
+//        initialHand = { 24,25,26, 4, 0, 8,12,16,20,28, 32,36,40,44, 33,37,41 };
+//        publicCard = {};
+//        steps.push_back({ opp1, {8,8,8,3} }); // 上家出888带3
+//        steps.push_back({ opp2, {} });
+//        break;
+//    }
+//    }
+//
+//    // 初始化状态（同之前）
+//    vector<int> initHands[3];
+//    initHands[myPos] = initialHand;
+//    initHands[opp1] = {};
+//    initHands[opp2] = {};
+//    vector<vector<int>> emptyHistory;
+//    GameState rootState(initHands, publicCard, emptyHistory, landlordPos, myPos);
+//    // 设置总牌数
+//    rootState.totalCards[myPos] = initialHand.size();
+//    rootState.totalCards[opp1] = 17;
+//    rootState.totalCards[opp2] = 17;
+//    for (const auto& step : steps) rootState.applyActionInPlace(step.pointMove);
+//
+//    ParticleFilter::myRole = myPos;
+//    ParticleFilter::initialize(rootState);
+//
+//    cout << "===== 测试用例 " << testCase << ": " << caseDesc << " =====" << endl;
+//
+//    // 打印当前手牌
+//    int curHand[18];
+//    rootState.copyCurrentCnt(curHand);
+//    cout << "手牌点数分布: ";
+//    for (int v = 3; v <= 17; ++v) if (curHand[v] > 0) cout << v << "x" << curHand[v] << " ";
+//    cout << endl;
+//
+//    // 打印合法动作
+//    auto legalMoves = rootState.getAllActions();
+//    cout << "合法动作数量: " << legalMoves.size() << endl;
+//    for (size_t i = 0; i < legalMoves.size(); ++i) {
+//        cout << "  " << i << ": ";
+//        for (int v : legalMoves[i]) cout << v << " ";
+//        if (legalMoves[i].empty()) cout << "(过牌)";
+//        cout << endl;
+//    }
+//
+//    // 执行决策
+//    auto start = chrono::steady_clock::now();
+//    vector<int> best = decideWithParticleFilter(rootState, 900);
+//    auto end = chrono::steady_clock::now();
+//    cout << "决策耗时: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << " ms" << endl;
+//    cout << "最佳动作点数序列: ";
+//    for (int v : best) cout << v << " ";
+//    cout << endl;
+//
+//    // 转换牌面id
+//    vector<int> cardMove;
+//    vector<int> tempHand = initialHand;
+//    for (const auto& step : steps) {
+//        if (step.player != myPos) continue;
+//        for (int val : step.pointMove) {
+//            auto it = find_if(tempHand.begin(), tempHand.end(), [val](int c) {
+//                return CardPatternAnalysis::getCardValue(c) == val;
+//                });
+//            if (it != tempHand.end()) tempHand.erase(it);
+//        }
+//    }
+//    for (int val : best) {
+//        auto it = find_if(tempHand.begin(), tempHand.end(), [val](int c) {
+//            return CardPatternAnalysis::getCardValue(c) == val;
+//            });
+//        if (it != tempHand.end()) {
+//            cardMove.push_back(*it);
+//            tempHand.erase(it);
+//        }
+//        else {
+//            cardMove.clear();
+//            break;
+//        }
+//    }
+//    cout << "出牌牌面ID: ";
+//    for (int c : cardMove) cout << c << " ";
+//    cout << endl << endl;
+//
+//    return 0;
+//}
