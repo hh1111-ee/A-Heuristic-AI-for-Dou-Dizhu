@@ -838,7 +838,7 @@ namespace PatternCheck {
         vector<vector<int>> result;
         int minVal = 3;
         if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4)
-            minVal = getMainValueOfLastMove(lastMovePatterns);
+            minVal = getMainValueOfLastMove(lastMovePatterns)+1;
         for (int v = minVal; v <= 17; ++v) {
             if (cnt[v] >= 4) result.push_back({ v, v, v, v });
         }
@@ -848,7 +848,7 @@ namespace PatternCheck {
         vector<vector<int>> result;
         int minVal = 3;
         if (!lastMovePatterns.empty() && lastMovePatterns.size() == 1)
-            minVal = getMainValueOfLastMove(lastMovePatterns);
+            minVal = getMainValueOfLastMove(lastMovePatterns)+1;
         for (int v = minVal; v <= 17; ++v) {
             if (cnt[v] >= 1) result.push_back({ v });
         }
@@ -858,7 +858,7 @@ namespace PatternCheck {
         vector<vector<int>> result;
         int minVal = 3;
         if (!lastMovePatterns.empty() && lastMovePatterns.size() == 2)
-            minVal = getMainValueOfLastMove(lastMovePatterns);
+            minVal = getMainValueOfLastMove(lastMovePatterns)+1;
         for (int v = minVal; v <= 17; ++v) {
             if (cnt[v] >= 2) result.push_back({ v, v });
         }
@@ -879,7 +879,7 @@ namespace PatternCheck {
         int lastLen = 0, lastStart = 0;
         if (!lastMovePatterns.empty()) {
             lastLen = lastMovePatterns.size();
-            lastStart = getMainValueOfLastMove(lastMovePatterns);
+            lastStart = getMainValueOfLastMove(lastMovePatterns)+1;
         }
         for (int len = 5; len <= 12; ++len) {
             if (lastLen != 0 && len != lastLen) continue;
@@ -903,7 +903,7 @@ namespace PatternCheck {
         int lastLen = 0, lastStart = 0;
         if (!lastMovePatterns.empty()) {
             lastLen = lastMovePatterns.size() / 2;
-            lastStart = getMainValueOfLastMove(lastMovePatterns);
+            lastStart = getMainValueOfLastMove(lastMovePatterns)+1;
         }
         for (int len = 3; len <= 12; ++len) {
             if (lastLen != 0 && len != lastLen) continue;
@@ -930,7 +930,7 @@ namespace PatternCheck {
         int lastLen = 0, lastStart = 0;
         if (!lastMovePatterns.empty()) {
             lastLen = lastMovePatterns.size() / 3;
-            lastStart = getMainValueOfLastMove(lastMovePatterns);
+            lastStart = getMainValueOfLastMove(lastMovePatterns)+1;
         }
         for (int len = 2; len <= 6; ++len) {
             if (lastLen != 0 && len != lastLen) continue;
@@ -955,7 +955,7 @@ namespace PatternCheck {
         vector<vector<int>> result;
         int minTriple = 3;
         if (!lastMovePatterns.empty() && lastMovePatterns.size() == 4)
-            minTriple = getMainValueOfLastMove(lastMovePatterns);
+            minTriple = getMainValueOfLastMove(lastMovePatterns)+1;
         for (int triple = minTriple; triple <= 17; ++triple) {
             if (cnt[triple] < 3) continue;
             for (int single = 3; single <= 17; ++single) {
@@ -970,7 +970,7 @@ namespace PatternCheck {
         vector<vector<int>> result;
         int minTriple = 3;
         if (!lastMovePatterns.empty() && lastMovePatterns.size() == 5)
-            minTriple = getMainValueOfLastMove(lastMovePatterns);
+            minTriple = getMainValueOfLastMove(lastMovePatterns)+1;
         for (int triple = minTriple; triple <= 17; ++triple) {
             if (cnt[triple] < 3) continue;
             for (int pair = 3; pair <= 17; ++pair) {
@@ -1070,7 +1070,7 @@ namespace PatternCheck {
         vector<vector<int>> result;
         int minQuad = 3;
         if (!lastMovePatterns.empty() && lastMovePatterns.size() == 6) {
-            minQuad = getMainValueOfLastMove(lastMovePatterns);
+            minQuad = getMainValueOfLastMove(lastMovePatterns)+1;
         }
         for (int quad = minQuad; quad <= 17; ++quad) {
             if (cnt[quad] < 4) continue;
@@ -1093,7 +1093,7 @@ namespace PatternCheck {
         vector<vector<int>> result;
         int minQuad = 3;
         if (!lastMovePatterns.empty() && lastMovePatterns.size() == 8) {
-            minQuad = getMainValueOfLastMove(lastMovePatterns);
+            minQuad = getMainValueOfLastMove(lastMovePatterns)+1;
         }
         for (int quad = minQuad; quad <= 17; ++quad) {
             if (cnt[quad] < 4) continue;
@@ -1508,6 +1508,7 @@ public:
             }
             else {
                 this->currentPlayer = (this->currentPlayer + 1) % 3;
+                 
             }
         }
         else {
@@ -1527,6 +1528,7 @@ public:
                 this->isGameOver = true;
                 this->winner = this->lastActionPlayer;
             }
+            
         }
     }
     GameState applyActionCopy(const vector<int>& action) const {
@@ -1839,22 +1841,26 @@ void ParticleFilter::initialize(const GameState& rootState) {
     // 1. 统计我方当前手牌（地主已含底牌）
     for (int v = 3; v <= 17; v++)
         usedCnt[v] += rootState.myhand[rootState.myRole][v];
-    // 2. 如果我是农民，我的当前手牌不含底牌，需额外加入底牌
-    if (rootState.myRole != rootState.landlordRole) {
-        for (int card : rootState.publiccard)
-            usedCnt[CardPatternAnalysis::getCardValue(card)]++;
+    //统计历史出牌
+    int history[18] = { 0 };
+    for (const auto& action : rootState.history) {
+        for (int v : action) {
+            history[v]++;
+        }
     }
-    // 3. 统计历史出牌
-    for (const auto& move : rootState.history)
-        for (int v : move) usedCnt[v]++;
-
-    // 4. 构建剩余牌池
+    // 2. 计算剩余牌的数量（总数4张，减去已知的）
     vector<int> pool;
     for (int v = 3; v <= 15; v++)
         for (int i = 0; i < 4 - usedCnt[v]; i++) pool.push_back(v);
     if (usedCnt[16] < 1) pool.push_back(16);
     if (usedCnt[17] < 1) pool.push_back(17);
-
+    //扣除历史出牌
+    for (int v = 3; v <= 17; v++) {
+        for (int i = 0; i < history[v]; i++) {
+            auto it = find(pool.begin(), pool.end(), v);
+            if (it != pool.end()) pool.erase(it);
+        }
+    }
     int need1 = rootState.totalCards[(rootState.myRole + 1) % 3];
     int need2 = rootState.totalCards[(rootState.myRole + 2) % 3];
 
@@ -2105,7 +2111,35 @@ public:
 
 };
 vector<int> decideWithParticleFilter(GameState& rootState, int timeMs = 900) {
-    const int N_Worlds = 10;
+    for(int i=0;i<3;i++){
+        cerr << "My hand for player " << i << ": ";
+        for (int v = 3; v <= 17; v++) {
+            for (int c = 0; c < rootState.myhand[i][v]; c++) {
+                cerr << v << " ";
+            }
+        }
+        cerr << endl;
+    }
+    for(int i=0;i<rootState.history.size();i++){
+        cerr << "History action " << i << ": ";
+        for (int v : rootState.history[i]) {
+            cerr << v << " ";
+        }
+        cerr << endl;
+    }
+    for(int i=0;i<3;i++){
+        cerr << "Total cards for player " << i << ": " << rootState.totalCards[i] << endl;
+    }
+    cerr << "Current player: " << rootState.currentPlayer << endl;
+    cerr << "Landlord player: " << rootState.landlordRole << endl;
+    cerr << "Is leading: " << rootState.isLeading() << endl;
+    cerr << "Last move: ";
+    for (int v : rootState.getLastMove()) {
+        cerr << v << " ";
+    }
+    cerr << endl;
+    
+    int N_Worlds = 10;
     int itersPerWorld = 1500;
     vector<int> bestAction;
     double bestWinRate = -1.0;
@@ -2124,6 +2158,15 @@ vector<int> decideWithParticleFilter(GameState& rootState, int timeMs = 900) {
         worldState.totalCards[opp1] = std::accumulate(p.hand1 + 3, p.hand1 + 18, 0);
         worldState.totalCards[opp2] = std::accumulate(p.hand2 + 3, p.hand2 + 18, 0);
         MCTSNode rootNode(worldState);
+        // for(int i=0;i<3;i++){
+        // cerr << "My hand for player " << i << ": ";
+        // for (int v = 3; v <= 17; v++) {
+        //     for (int c = 0; c < worldState.myhand[i][v]; c++) {
+        //         cerr << v << " ";
+        //     }
+        // }
+        // cerr << endl;
+    
         auto worldDeadline = chrono::steady_clock::now() + chrono::milliseconds(timeMs / N_Worlds);
         while (chrono::steady_clock::now() < worldDeadline) {
             rootNode.iterate();
@@ -2134,7 +2177,7 @@ vector<int> decideWithParticleFilter(GameState& rootState, int timeMs = 900) {
             actionWins[child->action] += child->wins;
         }
     }
-      cerr << "Total simulations: " << totalSims << endl;
+    //   cerr << "Total simulations: " << totalSims << endl;
     for (auto& [act, visits] : actionVisits) {
         if (visits == 0) continue;
         double rate = actionWins[act] / (double)visits;
@@ -2185,163 +2228,173 @@ int main() {
         return 0;
     }
 
-    // ---------- 出牌阶段 ----------
-        vector<int> currentHand;          // 初始手牌（之后会逐步减去已出牌）
-        vector<int> publicCard;
-        int myPosition = -1, landlordPosition = -1;
+// ---------- 出牌阶段 ----------
+vector<int> fullHand;            // 自己初始完整手牌（含底牌）
+vector<int> publicCard;
+int myPosition = -1, landlordPosition = -1;
 
-        // 1. 提取公共信息及初始手牌（包含底牌若为地主）
-        for (int i = 0; i <= turnID; ++i) {
-            Json::Value req = input["requests"][i];
-            if (req.isMember("publiccard") && req.isMember("landlord")) {
-                landlordPosition = req["landlord"].asInt();
-                myPosition = req["pos"].asInt();
-                publicCard.clear();
-                for (Json::UInt j = 0; j < req["publiccard"].size(); ++j)
-                    publicCard.push_back(req["publiccard"][j].asInt());
-                currentHand.clear();
-                for (Json::UInt j = 0; j < req["own"].size(); ++j)
-                    currentHand.push_back(req["own"][j].asInt());
-                if (landlordPosition == myPosition) {
-                    for (int c : publicCard) currentHand.push_back(c);
-                }
-                break;
-            }
+// 1. 提取公共信息
+for (int i = 0; i <= turnID; ++i) {
+    Json::Value req = input["requests"][i];
+    if (req.isMember("publiccard") && req.isMember("landlord")) {
+        landlordPosition = req["landlord"].asInt();
+        myPosition = req["pos"].asInt();
+        publicCard.clear();
+        for (Json::UInt j = 0; j < req["publiccard"].size(); ++j)
+            publicCard.push_back(req["publiccard"][j].asInt());
+        fullHand.clear();
+        for (Json::UInt j = 0; j < req["own"].size(); ++j)
+            fullHand.push_back(req["own"][j].asInt());
+        if (landlordPosition == myPosition) {
+            for (int c : publicCard) fullHand.push_back(c);
         }
-
-        // 2. 收集所有历史动作，同时跟踪当前玩家并更新我们的手牌
-        vector<vector<int>> allMoves;
-        int playerTurn = landlordPosition; // 第一个动作是由地主开始的
-
-        auto isLandlordFirstRoundPlaceholder = [](const Json::Value& req, const Json::Value& hist) {
-            return req.isMember("publiccard") && hist[0u].empty() && hist[1u].empty();
-        };
-
-        for (int i = 1; i <= turnID; ++i) {
-            Json::Value req = input["requests"][i];
-            Json::Value hist = req["history"];
-            if (isLandlordFirstRoundPlaceholder(req, hist)) continue;
-
-            auto addMoveAndUpdate = [&](const Json::Value& arr) {
-                if (arr.size() > 0) {
-                    vector<int> move;
-                    for (Json::UInt j = 0; j < arr.size(); ++j) {
-                        int v = CardPatternAnalysis::getCardValue(arr[j].asInt());
-                        move.push_back(v);
-                        // 如果这个动作是我们自己出的，从currentHand中移除
-                        if (playerTurn == myPosition) {
-                            auto it = find(currentHand.begin(), currentHand.end(), arr[j].asInt());
-                            if (it != currentHand.end()) currentHand.erase(it);
-                        }
-                    }
-                    allMoves.push_back(move);
-                } else {
-                    allMoves.push_back({}); // 过牌
-                }
-                playerTurn = (playerTurn + 1) % 3;
-            };
-
-            addMoveAndUpdate(hist[0u]);
-            addMoveAndUpdate(hist[1u]);
-
-            // 处理我们自己的历史响应（如果该回合已完成）
-            if (i < turnID) {
-                Json::Value resp = input["responses"][i];
-                if (resp.isArray() && resp.size() > 0) {
-                    vector<int> move;
-                    for (Json::UInt j = 0; j < resp.size(); ++j) {
-                        int card = resp[j].asInt();
-                        move.push_back(CardPatternAnalysis::getCardValue(card));
-                        // 从手牌移除（这部分之前已经做过，但为保险再做一次）
-                        auto it = find(currentHand.begin(), currentHand.end(), card);
-                        if (it != currentHand.end()) currentHand.erase(it);
-                    }
-                    allMoves.push_back(move);
-                } else {
-                    allMoves.push_back({});
-                }
-                playerTurn = (playerTurn + 1) % 3;
-            }
-        }
-
-        // 处理当前请求的 history（尚未执行的动作）
-        {
-            Json::Value histCur = request["history"];
-            if (!isLandlordFirstRoundPlaceholder(request, histCur)) {
-                auto addMoveAndUpdate = [&](const Json::Value& arr) {
-                    if (arr.size() > 0) {
-                        vector<int> move;
-                        for (Json::UInt j = 0; j < arr.size(); ++j) {
-                            int v = CardPatternAnalysis::getCardValue(arr[j].asInt());
-                            move.push_back(v);
-                            if (playerTurn == myPosition) {
-                                auto it = find(currentHand.begin(), currentHand.end(), arr[j].asInt());
-                                if (it != currentHand.end()) currentHand.erase(it);
-                            }
-                        }
-                        allMoves.push_back(move);
-                    } else {
-                        allMoves.push_back({});
-                    }
-                    playerTurn = (playerTurn + 1) % 3;
-                };
-                addMoveAndUpdate(histCur[0u]);
-                addMoveAndUpdate(histCur[1u]);
-            }
-        }
-
-        // 3. 构造 GameState 并重放动作（注意此时 currentHand 已经是实际剩余手牌）
-        vector<int> initHands[3];
-        initHands[myPosition] = currentHand; // 已正确扣减
-        initHands[(myPosition + 1) % 3] = {};
-        initHands[(myPosition + 2) % 3] = {};
-        vector<vector<int>> emptyHistory;
-        GameState rootState(initHands, publicCard, emptyHistory, landlordPosition, myPosition);
-        for (int p = 0; p < 3; ++p) {
-            if (p == myPosition) continue;
-            rootState.totalCards[p] = (p == landlordPosition) ? 20 : 17;
-        }
-        for (const auto& move : allMoves)
-            rootState.applyActionInPlace(move);
-
-        // 4. 检查并决策
-        ParticleFilter::myRole = myPosition;
-        ParticleFilter::initialize(rootState);
-        if (rootState.currentPlayer != myPosition) {
-            Json::Value ret;
-            ret["response"] = Json::arrayValue;
-            ret["data"] = input["data"];
-            Json::FastWriter writer;
-            cout << writer.write(ret) << endl;
-            return 0;
-        }
-
-        vector<int> bestAction = decideWithParticleFilter(rootState, 900);
-        vector<int> cardMove;
-        vector<int> tempHand = currentHand; // 此时 currentHand 是真实剩余手牌
-        for (int val : bestAction) {
-            auto it = find_if(tempHand.begin(), tempHand.end(), [val](int c) {
-                return CardPatternAnalysis::getCardValue(c) == val;
-            });
-            if (it != tempHand.end()) {
-                cardMove.push_back(*it);
-                tempHand.erase(it);
-            } else {
-                cardMove.clear();
-                break;
-            }
-        }
-
-        Json::Value ret;
-        Json::Value output(Json::arrayValue);
-        for (int c : cardMove) output.append(c);
-        ret["response"] = output;
-        ret["data"] = input["data"];
-        Json::FastWriter writer;
-        cout << writer.write(ret) << endl;
-        return 0;
+        break;
+    }
 }
-//// 测试用 main 函数，替换原有的 main
+ 
+ 
+ 
+// 2. 收集所有真实动作序列 (allMoves) 与 自己已出的牌 (myPlayed)
+vector<vector<int>> allMoves;   // 按实际出牌顺序的点数序列（空数组为过牌）
+vector<int> myPlayed;           // 自己已出的牌ID列表
+
+for (int i = 1; i < turnID; ++i) {
+    Json::Value req = input["requests"][i];
+    Json::Value hist = req["history"];
+    bool skip = req.isMember("publiccard") && hist[0u].empty() && hist[1u].empty();
+    if (!skip) {
+         
+        for (int k = 0; k <2; k++) {
+            vector<int> move;
+            for (Json::UInt j = 0; j < hist[k].size(); ++j) {
+                int card = hist[k][j].asInt();
+                move.push_back(CardPatternAnalysis::getCardValue(card));
+            }
+            
+            allMoves.push_back(move);
+        }
+    }
+    // 自己的响应
+    Json::Value resp = input["responses"][i];
+    if (resp.isArray() && resp.size() > 0) {
+        vector<int> move;
+        for (Json::UInt j = 0; j < resp.size(); ++j) {
+            int card = resp[j].asInt();
+            move.push_back(CardPatternAnalysis::getCardValue(card));
+            myPlayed.push_back(card);   // 记录自己打出的牌
+        }
+        allMoves.push_back(move);
+    } else {
+        allMoves.push_back({});
+    }
+}
+
+// 当前请求的 history（尚未执行自己的响应）
+bool curPlaceholder = request.isMember("publiccard") &&
+                      request["history"][0u].empty() &&
+                      request["history"][1u].empty();
+if (!curPlaceholder) {
+    Json::Value hist = request["history"];
+    // 时间顺序：先 history[1] 后 history[0]
+    // 但 turnID==0 时 history[0] 是占位符，此时只有 history[1] 真实
+    if (turnID == 0 && hist[0u].empty() && !hist[1u].empty()) {
+        vector<int> move;
+        for (Json::UInt j = 0; j < hist[1u].size(); ++j) {
+            int card = hist[1u][j].asInt();
+            move.push_back(CardPatternAnalysis::getCardValue(card));
+        }
+        allMoves.push_back(move);
+    } else {
+        for (int k = 0; k <2; k++) {
+            vector<int> move;
+            for (Json::UInt j = 0; j < hist[k].size(); ++j) {
+                int card = hist[k][j].asInt();
+                move.push_back(CardPatternAnalysis::getCardValue(card));
+            }
+            allMoves.push_back(move);
+        }
+    }
+}
+ // 农民首次请求时，删除 allMoves 中的占位空动作
+if (myPosition == 1&& !allMoves.empty() && allMoves[0].empty())
+    allMoves.erase(allMoves.begin());
+// 3. 生成自己当前手牌（用于构造我的初始手牌，传给 GameState）
+vector<int> myCurrentHand = fullHand;
+for (int c : myPlayed) {
+    auto it = find(myCurrentHand.begin(), myCurrentHand.end(), c);
+    if (it != myCurrentHand.end()) myCurrentHand.erase(it);
+}
+int k=1;
+for(auto& move:allMoves){
+    cerr << "Move"<<k++<<":";
+    for(int c:move){
+        cerr << c << " ";
+    }
+    cerr << endl;
+}
+
+// 4. 构造 GameState 并重放历史
+// 对手手牌未知，暂时给空
+vector<int> initHands[3];
+initHands[myPosition] = fullHand;
+initHands[(myPosition + 1) % 3] = {};
+initHands[(myPosition + 2) % 3] = {};
+vector<vector<int>> emptyHistory;
+GameState rootState(initHands, publicCard, emptyHistory, landlordPosition, myPosition);
+
+// 设置对手总牌数（初始17/20，后续 apply 会扣除）
+for (int p = 0; p < 3; ++p) {
+    if (p == myPosition) continue;
+    rootState.totalCards[p] = (p == landlordPosition) ? 20 : 17;
+}
+ 
+for(const auto& move : allMoves) {
+    rootState.applyActionInPlace(move);
+}
+cerr<<rootState.currentPlayer<<endl;
+cerr<<"Last move in rootState: ";
+for(int c:rootState.getLastMove()){
+    cerr << c << " ";
+}cerr << endl;
+
+// 5. 粒子滤波初始化（它会根据 rootState 的已知信息生成粒子）
+ParticleFilter::myRole = myPosition;
+ParticleFilter::initialize(rootState);
+
+if (rootState.currentPlayer != myPosition) {
+    Json::Value ret;
+    ret["response"] = Json::arrayValue;
+    ret["data"] = input["data"];
+    Json::FastWriter writer;
+    cout << writer.write(ret) << endl;
+    return 0;
+}
+
+vector<int> bestAction = decideWithParticleFilter(rootState, 900);
+vector<int> cardMove;
+vector<int> tempHand = myCurrentHand;
+for (int val : bestAction) {
+    auto it = find_if(tempHand.begin(), tempHand.end(), [val](int c) {
+        return CardPatternAnalysis::getCardValue(c) == val;
+    });
+    if (it != tempHand.end()) {
+        cardMove.push_back(*it);
+        tempHand.erase(it);
+    } else {
+        cardMove.clear();
+        break;
+    }
+}
+
+Json::Value ret;
+Json::Value output(Json::arrayValue);
+for (int c : cardMove) output.append(c);
+ret["response"] = output;
+ret["data"] = input["data"];
+Json::FastWriter writer;
+cout << writer.write(ret) << endl;
+return 0;
+}
 //// 根据点数返回该点数的第一张牌ID（0-53）
 //int cardIdByValue(int val) {
 //    for (int c = 0; c <= 53; ++c) {
